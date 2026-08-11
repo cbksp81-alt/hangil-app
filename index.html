@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1c2431">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>한길승강기 현장 점검</title>
+</head>
+<body style="margin:0;font-family:sans-serif;padding:24px;color:#78736c;background:#f6f5f2">
+앱을 불러오는 중입니다...
+<script>
+var U="https://script.google.com/macros/s/AKfycbyLSQfGCNkkzufjEddlv1pzKlkhp0llxsk5mR9VMxAgxOtl6GrEH86B5_MnlhZAIl9A/exec?token=hangil2026&action=raw";
+function show(h){document.open();document.write(h);document.close();}
+function cached(){try{return localStorage.getItem("hg_app")}catch(e){return null}}
+fetch(U).then(function(r){return r.text()}).then(function(h){
+  if(h&&h.indexOf("<!DOCTYPE")===0){try{localStorage.setItem("hg_app",h)}catch(e){}show(h);}
+  else{var c=cached();if(c)show(c);else document.body.textContent="앱을 불러오지 못했습니다.";}
+}).catch(function(){var c=cached();if(c)show(c);else document.body.textContent="앱을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.";});
+</script>
+</body>
+</html>
