@@ -6,18 +6,1663 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#1c2431">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>한길승강기 현장 점검</title>
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="한길승강기 점검">
+<title>한길승강기 현장 점검 관리</title>
+<style>
+  :root{
+    --base-font: 15px;
+    --primary:#2563eb;
+    --primary-dark:#1d4ed8;
+    --bg:#f6f5f2;        /* 따뜻한 종이색 - 눈이 덜 피로함 */
+    --card:#ffffff;
+    --line:#e8e4dd;
+    --text:#232120;
+    --muted:#78736c;
+    --ok:#15803d;
+    --warn:#c2410c;
+    --danger:#b91c1c;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Malgun Gothic","맑은 고딕",sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    font-size:var(--base-font);
+    line-height:1.45;
+    padding-bottom:80px;
+  }
+  /* 글자 크기: 모든 텍스트가 --base-font 기준으로 상대 크기를 갖도록 rem 대신 em 사용 */
+  header{
+    position:sticky;top:0;z-index:50;
+    background:#1c2431;color:#fff;
+    padding:11px 14px;
+  }
+  header .title{font-size:1.1em;font-weight:700;letter-spacing:-.2px;}
+  header .sub{font-size:.75em;opacity:.62;margin-top:1px;font-weight:500;}
+  .brand{display:flex;align-items:center;gap:11px;}
+  .brand-logo{height:32px;background:#fff;border-radius:8px;padding:3px 7px;}
+  .toolbar{
+    display:grid;grid-template-columns:1fr 1fr auto auto;gap:6px;align-items:center;
+    padding:9px 12px;background:var(--card);border-bottom:1px solid var(--line);
+    position:sticky;top:54px;z-index:40;
+  }
+  .toolbar select{width:100%;min-width:0;padding:8px 6px;font-size:.9em;}
+  .tool-right{display:contents;}
+  select,input,button{font-size:1em;font-family:inherit;}
+  select,input[type=text],input[type=date]{
+    padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);
+  }
+  .btn{
+    padding:9px 13px;border:none;border-radius:9px;background:var(--primary);color:#fff;
+    font-weight:600;cursor:pointer;
+  }
+  .btn:active{transform:scale(.97);}
+  .btn.secondary{background:#efece6;color:var(--text);}
+  .btn.ghost{background:transparent;color:var(--primary);border:1px solid var(--primary);}
+  .btn.sm{padding:5px 9px;font-size:.85em;border-radius:6px;}
+  .btn.danger{background:var(--danger);}
+  .btn.ok{background:var(--ok);}
+
+  .fontsize-group{display:flex;gap:4px;margin-left:auto;}
+  .fontsize-group button{
+    width:30px;height:30px;border-radius:6px;border:1px solid var(--line);
+    background:#fff;color:var(--text);cursor:pointer;font-weight:700;
+  }
+  .fontsize-group button.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+
+  .progress-wrap{display:flex;align-items:center;gap:9px;padding:9px 12px 3px;}
+  .progress-bar{flex:1;height:10px;background:#e8e4dd;border-radius:6px;overflow:hidden;}
+  .progress-bar > span{display:block;height:100%;background:var(--ok);width:0;transition:width .3s;}
+  .progress-text{font-size:.86em;color:#334155;font-weight:700;white-space:nowrap;}
+  html[data-theme=dark] .progress-text{color:#cbd5e1;}
+  html[data-theme=dark] .progress-bar{background:#1e293b;}
+  .search-count{padding:2px 2px 8px;font-weight:700;color:var(--primary);font-size:.95em;}
+
+  .filters{display:flex;flex-wrap:nowrap;gap:6px;padding:8px 12px;overflow-x:auto;-ms-overflow-style:none;scrollbar-width:none;}
+  .filters::-webkit-scrollbar{display:none;}
+  .filters .chip{flex:0 0 auto;}
+  .filters select{width:100%;font-weight:700;}
+  /* 검사대상 필터를 볼 때만 나타나는 월 바꾸기 버튼 */
+  #monthBtn{
+    display:none;flex:0 0 auto;white-space:nowrap;cursor:pointer;font-weight:700;
+    padding:9px 13px;border-radius:9px;border:1px solid var(--primary);
+    background:var(--primary);color:#fff;
+  }
+  #monthBtn:active{transform:scale(.97);}
+  .chip{
+    padding:7px 13px;border-radius:20px;border:1.5px solid var(--line);background:#fff;
+    font-size:.88em;cursor:pointer;color:#475569;font-weight:600;
+  }
+  .chip.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+  .chip.warn.active{background:var(--warn);border-color:var(--warn);}
+  .chip.danger.active{background:var(--danger);border-color:var(--danger);}
+
+  #list{padding:10px 12px;}
+  .site-card{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:13px 14px;margin-bottom:9px;
+  }
+  .site-card.done{border-color:#bbe6c8;background:#f6fbf7;}
+  .site-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .site-name{font-size:1.08em;font-weight:750;cursor:pointer;letter-spacing:-.2px;}
+  .site-addr{font-size:.85em;color:var(--muted);margin-top:3px;cursor:pointer;}
+  .badge{display:inline-block;font-size:.7em;padding:2px 7px;border-radius:10px;margin-left:4px;vertical-align:middle;}
+  .badge.month{background:#dbeafe;color:#1d4ed8;}
+  .badge.fm{background:#fef3c7;color:#b45309;}
+  .badge.team{background:#ede9fe;color:#6d28d9;}
+  .elev-list{margin-top:9px;display:flex;flex-direction:column;gap:6px;}
+  .elev-row{
+    display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--line);
+    border-radius:10px;background:#fcfbf9;flex-wrap:wrap;
+  }
+  .elev-list .elev-row:nth-child(even):not(.done){background:#f3f1ec;}
+  #list .list-row:nth-child(even):not(.done){background:#f3f1ec;}
+  html[data-theme=dark] .elev-list .elev-row:nth-child(even):not(.done){background:#182338;}
+  html[data-theme=dark] #list .list-row:nth-child(even):not(.done){background:#182338;}
+  .elev-row.done{background:#f2faf4;border-color:#bbe6c8;}
+  .elev-no{font-weight:750;color:var(--primary);cursor:pointer;font-size:1em;letter-spacing:-.2px;}
+  .elev-meta{font-size:.82em;color:var(--muted);}
+  .m-badge{background:#eeebe4;color:#5f5a52;font-weight:600;padding:2px 8px;border-radius:8px;font-size:.76em;}
+  .done-info{color:var(--ok);font-weight:700;font-size:.82em;}
+  .elev-check{margin-left:auto;display:flex;align-items:center;gap:8px;}
+  .elev-check input[type=checkbox]{width:26px;height:26px;accent-color:var(--ok);}
+  .elev-date{font-size:.8em;}
+  .check-note{font-size:.75em;color:var(--muted);margin-top:4px;}
+  .elev-note{flex-basis:100%;font-size:.78em;color:var(--warn);margin-top:2px;}
+  .bigcheck{display:flex;align-items:center;gap:10px;padding:12px;border:2px solid var(--line);border-radius:10px;margin:6px 0 12px;font-weight:700;cursor:pointer;font-size:1.05em;}
+  .bigcheck input{width:26px;height:26px;}
+  .mapbtn{width:100%;margin-top:8px;padding:13px;}
+  .map-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px;}
+  .map-sq{aspect-ratio:1;border:none;border-radius:16px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;font-size:.92em;cursor:pointer;}
+  .map-sq .ic{font-size:2em;}
+  .map-sq.kakao{background:#FEE500;color:#191919;}
+  .map-sq.naver{background:#03C75A;color:#fff;}
+  .map-sq.google{background:#fff;color:#1a73e8;border:2px solid #dadce0;}
+  html[data-theme=dark] .map-sq.google{background:#e8eaed;}
+  #specResult{font-size:1.05em;line-height:1.85;}
+  .month-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .month-grid .btn{padding:13px 0;}
+  .month-grid .btn.now{outline:3px solid #93c5fd;}
+  .reg-badge{background:#e3f3e8;color:#15803d;font-weight:600;padding:2px 8px;border-radius:8px;font-size:.74em;}
+  .delay-badge{background:#fbe6e3;color:#b91c1c;font-weight:600;padding:2px 8px;border-radius:8px;font-size:.74em;}
+  .cond-box{background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:11px;margin-bottom:10px;color:#991b1b;font-size:.93em;line-height:1.55;}
+  html[data-theme=dark] .cond-box{background:#2a1215;border-color:#7f1d1d;color:#fca5a5;}
+  #warnBanner{margin:8px 12px 0;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;padding:10px 12px;font-size:.88em;color:#b91c1c;display:none;}
+  #warnBanner.show{display:block;}
+  #warnBanner .wtitle{font-weight:800;cursor:pointer;}
+  #warnBanner ul{margin:6px 0 0;padding-left:18px;display:none;}
+  #warnBanner.open ul{display:block;}
+  .settings-btn{position:absolute;top:10px;right:12px;background:rgba(255,255,255,.18);border:none;color:#fff;font-size:1.3em;border-radius:8px;width:38px;height:38px;cursor:pointer;}
+
+  /* 넓은 화면(폴드 펼침·태블릿)에서 2열 보기 */
+  @media (min-width:640px){
+    html:not([data-wide=off]) #list{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start;}
+    html:not([data-wide=off]) #list .site-card{margin-bottom:0;}
+    html:not([data-wide=off]) #list .empty,html:not([data-wide=off]) #list .loading{grid-column:1/-1;}
+  }
+
+  /* 다크 모드 */
+  html[data-theme=dark]{--bg:#0b1220;--card:#151f31;--line:#2b3a52;--text:#e2e8f0;--muted:#94a3b8;}
+  html[data-theme=dark] select,html[data-theme=dark] input[type=text],html[data-theme=dark] input[type=date],html[data-theme=dark] .field textarea{background:#151f31;color:#e2e8f0;border-color:#2b3a52;}
+  html[data-theme=dark] .toolbar,html[data-theme=dark] .bottom-bar{background:#111a2b;border-color:#2b3a52;}
+  html[data-theme=dark] .chip{background:#151f31;color:#cbd5e1;border-color:#2b3a52;}
+  html[data-theme=dark] .site-card{background:#151f31;border-color:#2b3a52;box-shadow:none;}
+  html[data-theme=dark] .site-card.done,html[data-theme=dark] .elev-row.done{background:#0c2417;border-color:#166534;}
+  html[data-theme=dark] .elev-row{background:#101a2c;border-color:#2b3a52;}
+  html[data-theme=dark] .m-badge{background:#1e3a8a;color:#bfdbfe;}
+  html[data-theme=dark] .modal{background:#151f31;color:#e2e8f0;}
+  html[data-theme=dark] .btn.secondary{background:#2b3a52;color:#e2e8f0;}
+  html[data-theme=dark] .fontsize-group button{background:#151f31;color:#e2e8f0;border-color:#2b3a52;}
+  html[data-theme=dark] .placeholder-box{background:#101a2c;border-color:#2b3a52;}
+  html[data-theme=dark] .bigcheck{border-color:#2b3a52;}
+  html[data-theme=dark] .progress-bar{background:#2b3a52;}
+  html[data-theme=dark] .progress-text{color:#cbd5e1;}
+  html[data-theme=dark] .reg-badge{background:#0c2417;color:#4ade80;}
+  html[data-theme=dark] .delay-badge{background:#3b0d0d;color:#f87171;}
+  html[data-theme=dark] #warnBanner{background:#2a1215;border-color:#7f1d1d;color:#fca5a5;}
+  html[data-theme=dark] .modal{background:#0e1626;}
+
+  /* 네이비 테마 */
+  html[data-theme=navy]{--bg:#e7edf8;--card:#ffffff;--line:#c7d4ea;--text:#12203a;--muted:#5b6b85;--primary:#1e40af;--primary-dark:#1e3a8a;}
+  html[data-theme=navy] header{background:linear-gradient(135deg,#1e40af,#14264f);}
+  /* 민트 테마 */
+  html[data-theme=mint]{--bg:#e7f6ee;--card:#ffffff;--line:#c2e3d2;--text:#0d2b1e;--muted:#4d7a66;--primary:#059669;--primary-dark:#047857;}
+  html[data-theme=mint] header{background:linear-gradient(135deg,#059669,#054d3b);}
+  html[data-theme=mint] .m-badge{background:#d1fae5;color:#047857;}
+
+  .theme-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+  .theme-row button{padding:11px 0;border:1.5px solid var(--line);border-radius:10px;background:#fff;font-weight:700;cursor:pointer;color:#475569;}
+  .theme-row button.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+  html[data-theme=dark] .theme-row button{background:#151f31;color:#cbd5e1;border-color:#2b3a52;}
+  html[data-theme=dark] .theme-row button.active{background:var(--primary);color:#fff;}
+
+  /* Modal */
+  .modal-back{
+    position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;
+    display:none;align-items:flex-end;justify-content:center;
+  }
+  .modal-back.open{display:flex;}
+  .modal{
+    background:#eef2f7;width:100%;max-width:520px;border-radius:16px 16px 0 0;
+    padding:16px;max-height:90vh;overflow-y:auto;
+  }
+  .modal h3{margin:0 0 12px;font-size:1.15em;font-weight:800;}
+  .field{margin-bottom:11px;}
+  .field label{display:block;font-size:.82em;color:#334155;font-weight:700;margin-bottom:4px;}
+  #detailBody .field > div{background:#fff;border:1.5px solid var(--line);border-radius:9px;padding:9px 11px;min-height:21px;}
+  html[data-theme=dark] .field label{color:#94a3b8;}
+  html[data-theme=dark] #detailBody .field > div{background:#101a2c;border-color:#2b3a52;}
+  .field input,.field select,.field textarea{width:100%;}
+  .field textarea{min-height:60px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:1em;}
+  .sec-head{margin:16px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--line);font-weight:750;font-size:.98em;}
+  .sec-head .sec-note{font-weight:600;font-size:.78em;color:var(--muted);margin-left:6px;}
+  .modal-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+  .modal-actions .btn{flex:1;min-width:96px;}
+
+  .placeholder-box{
+    border:1px dashed #cbd5e1;border-radius:8px;padding:10px;background:#f8fafc;
+    font-size:.82em;color:var(--muted);margin-top:6px;
+  }
+  .placeholder-box b{color:var(--warn);}
+  .empty{text-align:center;color:var(--muted);padding:40px 12px;font-size:.9em;}
+  .loading{text-align:center;padding:30px;color:var(--muted);}
+  .toast{
+    position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+    background:#1e293b;color:#fff;padding:10px 16px;border-radius:20px;font-size:.85em;
+    z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;
+  }
+  .toast.show{opacity:1;}
+
+  .bottom-bar{
+    position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);
+    display:flex;padding:8px 12px;gap:8px;z-index:60;
+  }
+  .bottom-bar .btn{flex:1;}
+  .search-row{display:flex;gap:6px;padding:2px 12px 10px;}
+  /* 검색창은 가장 자주 쓰는 곳 - 테두리·아이콘·그림자로 "여기를 누르세요"가 보이게 */
+  .search-box{
+    flex:1;display:flex;align-items:center;background:#fff;
+    border:2px solid #b9cdf3;
+    border-color:color-mix(in srgb, var(--primary) 34%, #ffffff);
+    border-radius:26px;padding:3px 7px 3px 6px;
+    box-shadow:0 2px 6px rgba(0,0,0,.06);
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .search-box:focus-within{
+    border-color:var(--primary);
+    box-shadow:0 0 0 4px rgba(37,99,235,.15);
+  }
+  .search-box .sicon{
+    flex:0 0 auto;width:30px;height:30px;border-radius:50%;
+    background:var(--primary);color:#fff;font-size:.9em;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .search-box input{flex:1;border:none;outline:none;padding:10px 8px;background:transparent;color:var(--text);font-size:1em;min-width:0;}
+  .search-box input::placeholder{color:#9b968e;opacity:1;}
+  #clearSearch{border:none;background:#e6e2db;color:#5a554e;border-radius:50%;width:28px;height:28px;cursor:pointer;font-weight:700;display:none;flex:0 0 auto;}
+  #clearSearch.show{display:block;}
+  .tool-right{margin-left:auto;display:flex;gap:6px;}
+  .sort-btn{padding:8px 12px;border:1.5px solid var(--line);border-radius:10px;background:#fff;font-weight:700;color:#475569;cursor:pointer;white-space:nowrap;}
+  .list-row{display:flex;align-items:center;gap:9px;background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:6px;}
+  .list-row.done{background:#f0fdf4;border-color:#86efac;}
+  .lr-main{flex:1;min-width:0;}
+  .lr-name{font-weight:800;font-size:.98em;cursor:pointer;}
+  .lr-sub{font-size:.8em;color:var(--muted);margin-top:2px;word-break:break-all;}
+  .lr-note{font-size:.78em;color:var(--warn);margin-top:1px;}
+  .list-row input[type=checkbox]{width:24px;height:24px;accent-color:var(--ok);flex:0 0 auto;}
+  html[data-theme=dark] .list-row{background:#151f31;border-color:#2b3a52;}
+  html[data-theme=dark] .list-row.done{background:#0c2417;border-color:#166534;}
+  html[data-theme=dark] .search-box{background:#151f31;border-color:#3b5b96;box-shadow:none;}
+  html[data-theme=dark] .search-box input::placeholder{color:#7d8798;}
+  html[data-theme=dark] #clearSearch{background:#2b3a52;color:#cbd5e1;}
+  html[data-theme=dark] .sort-btn{background:#151f31;border-color:#2b3a52;color:#cbd5e1;}
+</style>
 </head>
-<body style="margin:0;font-family:sans-serif;padding:24px;color:#78736c;background:#f6f5f2">
-앱을 불러오는 중입니다...
+<body>
+
+<header>
+  <button class="settings-btn" id="settingsBtn" title="설정">⚙</button>
+  <div class="brand">
+    <img class="brand-logo" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAANMAAABQCAIAAAAMQdf4AAA/aElEQVR42u29Z7Rl11klOue31j7nprqVo6oUrZxsBUtWMnJGtozdGLAxYIN5tAfweE03JjQdgAF0P/x4j+5H6ODudg+a0A00bhwwwbINAksytixbyUHBsrJUUqnSvefsvb75fqy199n31q26V3a57Nejz6hR44Zzz05rfWF+85sfXQ6AIITyogABkAQBpECSyUUD8++79+IEvRIAwpQPKS8HZz4fCpBAuEGQwQQ4QMAEAokAEKB8+gT6/2Ppt3KAkgCQBCCy+zAIApwgYe3ZucT8p4JIk+czW3Kg/k1rr2NyE9W/sQQAL1+qO0PAIUGiRXg+Wr43BAkajN0VOaD2CAZY+4G29MYqtQ+x3EoXXOW70B48f19uwnF5oLG7Ayy3x3vHcZeThnL7ofzV0ZfbUW9x/1KXvo1H/HDZslD7BqG7D/TunkpwReYNYpN7rbxelbdS9zB8yQmu8LL2YBJAtdebPzh/PgkeeRdISDCycReMeYke8xXypZU1BQIhX7E4WSJk72YGMOUVWq6UIoODDjTJm8brWk4/eEgPPfz0U0/vbVLTNE1qmkDGQVw3v27Xzp1bN01NDRjMooWpGCLgAiTCSQLGsoXyykfvCRy3Fz3v7XKdDjlogCUBROhtHa202pedTrex+t8u+ytf+jY74ofW+9baR7JssU72BxAApTENQCUQVLbaIskVTniVO7LC2XqxKzCXiSBkk/c68r4EkzcWLMHWaBm49JTYWSEYxO57sOz7/KYGcvcQFBABjIFF4EtfOfTZz33h81+674EHHvnyw48++fS+0djrJoEgKZoDcpnZ1GAwPQyb16878/TdL33JpdddddFJW4cBGJRtUEy9lt5kYiUr8rWsPEl5bYXeynNYAp49XN/30OO3fOKzTz75tGCg9RaAtxbSToy3tbLI2blQIUXT5k1z11x58cVnn1qFHBYAEEWAo7r+wE23HFogLRBjwRLDEXYZK+wmOY0S2aT52cHLrr10/YwVmyfL69omZs87l+hKIozhK48/89e33tUwrmb3ctTA7GcDmtddf+mGdXOSE9ZaHZXPb92tGyNw0PH4k3sffPS5v/3UPZ/7/H13f+HLhw+NRrVGY18cN01yWoBREiEhCJbXsqeGpmiYHtj8TNgwN9i1Y/0lF1109WXnXXDGrp1b5kOJHliOWYy8ONkMx33lKUFyBBkfO7DwS7/xgfd/+GPP7t0nBCDkzdAa/1Se34kK9FhO0yDK8qMX1JgWdm5b/2M/8ra3ftu16yJNCWSQkXx2YfT3vu+nP3nXo1ZNS2PZoPEY2FB+rHXXOroApsWDp5+08Y9//1+fsW0Kam88m9ZV5gXjzPsCAL1OqQrVhz9+63f/8C/XcSPkWsW3k0Cgu9fTVfPRP/jV887Yk1Jjge5OksUnUy7BGcKBcbr7iw/f+pkH/vD9H/vc5+8fO5PTYWaBFokIM1jeYBKc8OAWZDmid0qUwyX3VCs1ACpiSFx9+YVvf/MrLzvvpJO2bxkaPAmkBAtwOSFjOF4PNEIwFgvGNq2g8Ocf/fR7fvu/h6l1cXoDEJqEwCDmwFs22a9+olZeLxonchZBOTXz5LMLv/rrv7dz5/ZXX/6C2UjKJJEcDgfnnH/xbffu03CdUDeqkg+IMamVIsnyhUAnKSMgN1UzzpzYcGUDueJPaIizaTBPuVYId9tvFQBm6+o+RtWoy2gks5wdQUJyVYFAeOrQ6E9v+sxv/vvfv+u+Rzhc39isxcqkNpQ1V1mmvQOSckiEldhJJANhFivG7CU8AR+77XOf+vTtr3vFS97+lhtf8sJTYmBTe4wmh9nR4vaveuWxRGLZwQshBLvjvsf+33//+9VgCiHWKYVgycXKJFcb3kIwieJxjTuP7pZok9RCEJI8p48VYAcO8Kd/5jfws9//Ha+6xJObmZLPBLv6ivPf+18/zDTjTIDRTLLJghPBEs53Xzi9YSJKvuLtkp8sM9oq3jMvX8Xs4yYH6ttVSqJYAnknhNDAS6RLZDtKUHKRDPbgU/v+9u/u/oP/8bd/deudiVOY2tpYcBmVQ8P2PskmmVjZUnS6c5Lmdk+N8BzFknI6hjOHEv/wzz7z0U/c+503Xv1Db33V6bs2N8kDiZw1Hb9X7Odm7iDhwM2fvPueLz0c57Y1EoI1nqpBVdcj0mhLY02dMFyFJdds0Qiz4J43e6idDz/+zIc+ctvrrr9oOkZlyw2cfca2k7ZvfvS5moSRUFJZSWo/sgdmMK9pBAGiyVxGz9H+EgQEK+W2fXMgQaAjx1hLgajecTUxfiape7buyovPmYNU/P4HPvG+D/31zbfdufdQCrPzQiRNeWfAOfE8bI1zXlukrOAS5mVvqFwGO09CEwAxJbkNGwwe2T/+V//pg/d88YF3/ch3XX3xGQDoAa4Vk7av3tt294uk0Z4b1zff8hlWc0LMZyZJqYkhSOXB9RJ9ruhGVkZQVsRadMQPVwTccpylyQ1OTQIDSTcQDFPTN3/yjif2HTp163q5SHPo5JO2n3/uCx782Kfn1q0f1wIbQnmFrew0ct7qghhgOcRvM+s2f1mCwemIC8+GM5tQP7ZHYIaznJaXEVrDJKPRAZeeW2z++IO3/Mtf+93HnjoQZubjXByjMbqnpkI0mcsZNDkv9fcG2yQltL8X4e19pEiJJXqWh+BJyWkcDMNw64f/+q5Hn/itH/7+b7vxFVdsnKlaZPF4edsWtcgwKIiFxdHn7/+K23TQIJJ1StHgnmgkrEWSC6brOcvs7rqkPuKnFhH42lYeBUKWHUmBki2GkORSAuABQtp7YPHAoQZbQSPJxtO22alzz9vzJzd90imHkynDvPmT2XODE8dLZV+UT9w7XK6EJfSexROOle8V9A8dQtezrQQlMHXYrFOTdWocOyzwqQP+rl/8Dx/8s1tqN5ueQ6iUEFGZUXS5wGTZLrfnU5DMYtnKahFNLXpYYvT2uWSbKMBAOEIQ1BBx3CDObrn7/mf+j5/9zbvu+fKv/Mz3jJOGx8/hxsmDVhtGCaAlIYqSDFQSLcBr1AuCQ2UriQCSCgadb2b2hyp+WNaPfp63f4Xylm2RJW+T/AGqObmToJnUMOc9Vnl+iwsGOGl4wcnbN8zPLNQji1MQ5d4v2FDLHGBebTkllE/QjNY79fbV0dOOSUVARxyo9227gDN21sOna1cV7f5Hn/m13/rDD9306SbMWkXJkzdEJKgkM3OmpETm5ZW9aoHhTBkOyHbBirFD5/nZwvISoAyCF/AEQUipJqPLquF6H4c/+sDHr7z8rG9/xYsb98q4BIj8aqGW2MXLNqkWKHu2ZA2TCDbBjMDo0G/80g9ecsZJi+6BBohlzdEhmwTqzB65IQjaGsoGba2mdT8Tb6EEOhDa02vk07TP3f/Y3//Z31Y1BYhuhBGJHuRq8bOGDMEMwBUXn7tn69zdjzwb4wzciJIkHf1sTBTYOJWYfGLRLZ+eTe402UF65XlYi69I2Y8dEzwkoiuBOaorxSIBIdpXnj3407/43r/4q9tTtY4xJnez6MnJAvWVeI0EnHAxQgEKQDCJTPJEo5slggkDiUhQMlJkKlF6XqbBPJ94QBIoy5uGqlMzGAyfPrD/n//qf9m34G+78UopCYGQlMwEBMgmNbY1575RS4H7spjlPZucd5Looxedu+eSM0/FN/oVh0ModeXMDMQSRAfUFQ8DSeeeuuWMPZvueuhJIxsxcFUkGVQAm25Pc2nBxpahKepyhUAZ9DwMvBulQHhb9PWUROC5hdH/+a9/94Mfu72a2gTA3XPaUarI8F6Yz9ZfF4TfSmRnxsrpOUOCkkga6JaSM5gZXMqIOEWKopyJapNfSO7B2ChVw5n7Htn/c7/621s2zN5w1flyH0TrpxqTe7rmpWer/ZbZdBtk1OLBheQ+Htep9tR4U9epSXXyUUqjtDBO43HyhcbHdT2uFw77eOSp9tVfdVPXXrs37UctjtO4SU1Ki+PUjJKnsaexNykdruvkvrCwkFzZ4IhwemPehEYhLasbSzDgwovOrczgKcDXUj8LHsyr4FXwEJzW2q4cbq5YAhPg8Iz098OLYx/M5CbQA2GAJyUPVrv+zXs/8Ad/fNNwdhYmrYqYKjgqKABurMkxmFxKMqRgCYPklSUPqXY1DG4D9wAn3cwjUwWFZGhCakKdLHkOk2SBQYKEhBCGc08/s/CPf+7f/e3t9w8razIOgoDMIlHxUUKzxuDq2CuPLQVChmRKVbRAMhgDFciqCjHEYDFYCAMLFQMZEEMchDg0VlRF2mqvKsYgGdoPtwoWQgghDEMIITBUZEUPhhiDUWRowR1RJXxW0NL9xrJW8NJrL1s3XSE1xjVtSAommJSDo7LaBNBZarhin2wCI8xaBO5IH3J09C+xpC2CALMU+B//6OO/9m/fV9v8KHGMZtUTzjlMPlM6nUzmXimFBEsWZABTLmNXrpisQrCcqBeomhA9x+WiBHdrRK+VnICF5ME9DqbW3//I/l//j3/yxP7DImtX04LAKOGlC0nPG8878oJUnoFDJeYmndx7yEGTiUjRAdIz5KkGrAK4Lmg4DOaJDnTln2PdPBkNYJP49CEnECxk6kTef1GqQRnrpt6+rpKZI1FOgDIHCCMCUffK3B1KgjNO3rp7+6YvPLiPcbCGeyLByQQS8PJIejmClpXPHeijXA6EHBKuYY0LoMtNkFOhGt5+99P/5j/9ycFxjDMzogPuLjvm6uti4w5zkNzR0EBkBFiRwRQSLNEQ6C66AjuKDAA3pykKApMoz4iHxaZ2E4IxueL03E2fuP19N336B95wzdhRUWEJjMm1433xmJfkLS6SyzIWB8O7v/TQh266Y2p2PsElDyq8LVgDIHAqjUbXXnLmZRefklxhbeeRU7tAfPnxp/74I5+JMZCVJKKREbLgchlDWBztf8VVFzgg0qjMpLOCIPQ9qXW3w6W5qcFpe3bd+6UnQzUrafVzMgneMq2WUnsmFYwVkaHnn76XeFoA3cPH/ubuh594tpqZqzMzUmtMHXOgmwuzCDSQTVPXdaPUmBAtRIvVcCqEOHZ3uRXKYTFWbC19cSPF5Zk7JDAQnus6PHC4/suPffKNr7li3TAir8/JpbDj3X1NKw/MQQapIMZGoZqe/vCf/9VP/bN/N7t5xyjJzVAWveeQfGBxcd+Tv/izP3zZxac0YOCamCwia0cw3n7vfT/1878+nJmvVUkgcqYjUwpu0cLC/kfHP/OOl7/8CheD3JQghwLN4Ci7PINUymi+GvmGqcE1V178ob/4W+NGKzjysSt12c8qY2y+jDFbvkttwkswKRNFJ7xZtcCfjnnhweGBjZlRYTTiBz78V66pmuaUgWTk6imL8roVPdADVI9GaTTasXXrmeefMz8/C6gZjx57+JEHHnpwoRmHmfUhzroqlwwOZOyIJjKXXkQSkgGmpGCBEDh2QMapdRv/9KOfeu9/+8g/+L7XmKytgmQ0bS0Obi0rr8WAM+QvwiUbTtv6TbZuffQ2Aiw+JoGKYqjr4fRsW3zMYWdL+ep90f+WUoQADMJwML1xemb9QLHJf2oJcKKBVzEM6nQ4DqZb9ixLuCWDV5AD9RGO0ylF4NwXbN+5bePehYRVb00pRVkIMSdXnODk4AR5Zi65chJS5uslgJRZcat73ELqcjkxkIfGK5mDxf1SPHL5SjKzzGQBQKNcRgSoOXxoYONXXnX5Da+44vQ9m7dv2zozPQWirpt9+/Z95bGnPnvPfR/6yC333v+Uh3UhTkvGEJQSlQuzdIGqgsMAl6JJapJkNpBEQTJi5r/91798wyuvPWvnrDxzctvlorVyluOxwwd1hO7C4VByeWIjNIIkU8MOwYJbCEmpbhaBzA1rlByMtLLOJHVfmFlKieSkgg13yd2T6vJoUwJcTI7gSg66XAXtpwpi2CGAtjxUZeHTnXXqSZdcfP6ffPSzg5l56Zh2SDJGdwkkLdLUVXp7/PfWNWXXbcrPaYJudDjzalzA4lyMNIFOExLkRreUvQ2XAZAhhEKgIiW5Z+/QeH34uhef//e/74YLzt595q5NXOqLtWcjLzzt1ddf9obXvORDH7nz9973kUefPOhxOjnEEAjJE2QhwuGNLNKU3JNFEnTBQsWm8XoxpPHjDz/2sZv+5qy3vkrKrQIgDM+nphtXCb8IClY2dU4NA3xoXgWHYKamhIPMcUIOvhOAxkcxBNqwuDB3AGYTXgygEEJ+f/aATiRTYuMQGNqCGTJxxORs854W8nXAQQddqLUsn6dDsGC1+2k7N111xUXv+8inVnW2BJW8ikHwlJJ15Dtmx4SWr2K9IimMMBpqhzuCtc0Mq0I4mbKUr1SGRiwsJ1MXhC3/jJSSmZFsmibG6O5GM1984w1X/fxP/sBpmwcAGnclBIIk5E4kksL6yl589qmXnH3qDS+/5N2/+Qcf/MvbBtMbx4qNiwYzjZvaZCEGldUWqWQUUY8P7R9E27JheM7JJ73xW1/+mpe/uAHMljLlaMfF2xYuOkswkTLpB5DJgxdCRgntZbJs/CMZAESLLj7y8INTUzNbt27Ly+6RRx4xs507d0oCuHfv3sOHD+/asydHqjXyYlOhC2XqWgEOnEhEIlPbWxMAd6biIUuGXfyXeslN3jynnbxlfn7dYkpkOIbZyzXs1NQxhhCsqce9Dyoc+yO4KswEUIum2gEYLWdAqxm9js9sbWjo2ca1NWpfFrCTdC8tDMXnqlG9+INvfd0/eueNO9YN3JPkRLDKcjeJkYSbmYlo5JSgy8/e9fPvettjjz9x+90PheFGMYBwpGCkWUoNEoeDIX08Hi3Qx/PrhltP3XjOWafe+Jpved31F0xbGIbJ4uiM/Nrpe3GVkEfWxjfJ0JRdyBpcpCUo9Et+FOWmhoYIIHBw9133/tiP/dg555z5a7/2a1VVPfbooz/6oz86NTX17ne/e/fu3YcPH/7lX/7lu+66672//Ttbtmwu3HpFR/TM+5UsuxoKzD1SCfLC024fWAaiiLQSdmsSs2manZmamh4e3j8Ox4z03N2MISC7fYuxTmhSyj1fDljhMqV+NVZESgpGCSmlcUptWqo1oKl5vyTKS3+HCvm8hy1MgoEQAsls+QAEjU8/af2P/9C37lg3ROMW5HAYU8l4YDDICthrhGSWUkrn7V7/y//0ne/8iV+5/9H9YTifPIENAaVUhYrGxQP7ouptm2dP33PSK6+/+OUvv+68F2wLQAQCGjmCxbZbhgVjaOmeXxOeZyrpfscXyesONCcdJlKk5cBSJihYAE3JAcj9njvvvu0Ttx488Nxz+/dv2rjxyw89dPPNN8/MzNx33327du166qmnbr311nvuvfcrX35w+5ZNAKMER/BIwekqZRwXzUEiOIZLz7l0PZaSqia9EYJYYJGuidOFZlUHaGaikiuYOasGcWbdVFxDxlaFyR0drptNjIBWq1iH1s6mCcleoYWutYxR2gXKIYQQTMJ4PD5z96af/N/ftG1+VpkmKhiDi10DpMtJmNSGYoTTqEbNlRec/La33PjLv/qfkzswdDCYIB8v7A8+Ou8Fp1xywRmXXXT29ddefu7u2abt7gxwSJIzb/6uekmsnT4Qjw2qmOClLGqiCRQDUCWr3BMQREDJOmqbBCgE5kd47dUv+YG3v+3UF5y6ZfNmABecf/7b3/726enpF73oRWZ2yimnvPnNb37g/vsvOPfs7BtjvtttzRoMhVghOYwcCgfFCC3JpqhSZLKwHGAjKCV2jatyrg5RQDQpJgUZDi/qD//Hx7fPNS5mfNk6XkWb45DuhEsBlBQt3PKFxxKqVfd+Gxu4LFlBT0Kb8GZcbXnQnrOK1CQLRoKeXv+ab3nLa65omhQDaZnXRZt4PiVPtFwGC0QECVW5fS5Jb379dR/6049/6nOPxalB4+Hwwf0b5wYvvPDMyy469cZXXvmSS8+cARogJQUwlJwzSMHazmSQS3q1+bVnGJ0pI9HCSpkIi7awxNaZsZBGBSDJAfz3P/jDD33wgwBv//Snf+Hnfm737t233/6ZQwcPJk//7Gf/yXkXXPDFz3/+mWefHY/H//inf+bvffsbr/2WlxUQ3pQL3KVxqmUnUYmoOUlcnZ6L3R3M0beF1sHqBXIqaUGzegmjUOYVQ9j73OGf/qX3mI8g5r3HXic1S/LvsFwsAIhEU5wKcUarmjxOumaFWPpLoI72g9IBm1tLSgOPGUF4ElN98Vlb3vFd10GqQkbI2wRTxVMnEgygBwAKhazdUW6EHRunv+dNr37o/n//zL4vnbZz5xu+5w3XXnnmGafvOWXH/ACo3RvA2tpEy04qTBLlDhUXTRKtAEk8LqgKMnJdoo5SKmgLl0vpXoAbCcgsHFoc/4f3/Ie/+Zubp6amXBoOBhs2bNi7d2/TNDkv27R58zN792Yyuyfc/+BDL7nmGsQI9+QJRsFZ6DeeITtDAzRqCz6ckG87Ih1bKD30qG89j6XnUViAnIAY48ymnOB099Qyq02TqmlupMrHMQqOtKZDaanbXX6WLSSoCRkOptQwmFlICweuftFZp26fy2h/eehEBq4MnmRNrpujdUtcQhEMRAO88mUvvuUTnzrv3HOuu/Lss888bX5omZDW0DI/Tn2ULTtsIvNaBUSKSoXruSS1+xqQ5OdfCXLIQ4yj0Wjfvmc2b948GAxyLra4uLh+/frUNAJijPV4vH79vFwwesKXv/zQwsLhvIBDsEZrQGGPd9f78jaJ1vAXtmmPIKDcvjNRCMikoo5j1isbH4eXlgCUFEF3BaKKuPTS82JR4ui3muVHIacWGhkUiE6Zogt+M0afgKm56h0/9KadO3ZsXz+oPe0d14GZTpbIJTIP3VWZIKLJyYUZZTSm9Dw60+LxfWZtUYILCwuXXnbpl774pbvvvmd+fv6lL33pAw8+OL9u3W233TYajW644YbFxUWSt9522+FDh1732hvv/eIXDx8+3JqQ1UNzPC8jdlwuSxPgShMDsOQ81KsHUsdn3RXfIusctJEmNs3o9N3bLjzvFEOrg9Lrf3N5COGOux98z+996Jmnn7UYaogKAMxzF2STLTVClTzEOJT7eLxoVGXm3gRjTtQ6BQWxOG2yyUyRkaeN83P/8J1vOf/0bXWjEGjHBUn+qp+RmYGcnZmdmZl1d4awcfPmx598cnp2tk4JZus3boyHDrl7k1KStm7b9uBXHjbLNRu4u1y0E9bVdjQgc9Lx1qsiqO2LX5VxpeNngNnRxoveC82b+uSTtm3esOEI2ypASU1AfPrZ/X99252PPbwX1XBkgR7QJrdZnyWlFOKwqQnGpBQCrAhbJMrN5L3cWkRwM7jYRBeIOjXbN234vjcfzhAy2VIIeMJXHonsnOSqm7pTbpBU1zWAGOPhw4eTe66bhRAB1HXdNHVKDQvPxmiOb96XleSTXKFrqZRBtAYZjecVxmRxBUEumoGpaTZvWrdhbrhSK0QJtjxE2bTHdaqmXGwp+7nwV5MOYyMwBiIIroDGFcws0OXeE7jKBFUyOCQby2W0xHqk6lDd5Da50KHsJ9jmdSxJT8mM09PTIYRxXbsnAIPBoKqqpmncPYZgZiGElJqUUlVVw+FUVUUSappvgrXlS4NMTuJ8CjDLOXevPlYaKTXRIztujci5bTcHacqqUSRNqdm6eWYuMqUmhNhb5NbV3MQgG440CB4KOxQmIBHGIIHyYOZNE4w0JCTmDouSirDHPRXAVHqRlSgza9wSwrhJhZV6tE7k589Jft5bUxJId59fN3fDa187HA7Xz89v3LDxlFNO+c7v+q6TTjopxrht27a5ubkbb7zxnHPOCSFs2rRp+/bt3/u937Nx42Z3sapapTR9w9Zd7qtgpxTWsZsLg7g0dpVKbq4fujG3YHpJsvV1OP+cwks0AJqbppUieNsG0MLpxQq6Gs+Bi5myOknhmcszqyR4UxgSqW4ompj3HRUyJ75QzmRd910+SAJFjptmNBq3akZpDRy0r8PKaz2NpZTmZqZfcvU1ZrZ9x45TTj3ljDPOeNN3vGnDhg2bNm0688wzp6env/W1N+zatWt2dvbcc8+dnZ39ju96k1mUp8xlWZasndhX7jpRUkIwR354LE9Nuf3bihEsMKZodDkDaXRvcvf2cUy0lzTpteo2zGInGRHoZzSyjNYZ1er4id01iHQDKilCFTkUAhiCVXmdGTPXmCyMjQAFKlKRJRsuta2M7qWmIRBI5WXKb0iG0X+A7gWAcGUn2/GjcuNPk1Lh+UjunquQhRfyDcwu2ConEJ6aEKJcRxqwtnG6x4c2I8wliyGldLyuIqOpxZplwqYoOQTvdUFwueYbW8/nRKNWTy1X5DoNzK4Hl0uUwZaCoC2NUKVvw1to3yQZNBxEAIZgDGt3VF+Hldcy8NhSKjtiRXbEXXm0Y+kh//9N80opxRgzb17eQJPSPrqmjA42ybIUkoXQNIkkjNEGruY4BQxULiEVXYRSmYTxwKEJQ7AnFYSuOTPjymTmOGbuRRKsfGQ/b17Rxi5JoPJ2bMmhTiPlGoQ4VQ0n4gX4Bq68Dsks+TVz0aIgkGZmhWvJXgG0r2vyDX4J0aKSDLRAuVugN4mTWBuQmSImUgrI6FeIIVvwbNmPi/pNjzTggJEGeOMNYnji6cPPjrRhWEliH0pb3squtiUekEJBJVcEHNlaO8fyzTap17RKrQSaWFXDQTVZp/yGrrwl4F5PC6d7ElYClFwOXNav1HKD+I1ytiTZpBSipaY2oh6NA7mkakIrytatUfBaSckYJJnRhVANXccNMWAnW9NKVZPx6af37z+4sGk448ty4ZXTP1MPpDySBdM1Pyz9rSaipZPOCCsLVB6omempgufl9oO1IStfl5XXVcrrul4cj8ajcY75mqYZLY5Go1HG9pqmqet6PB4nTxNBmm9cSjs5eTGayRVgwTA/Px8s8zK8r1fBwhRVpoKmlAjSDMR4XB8cjcHh8bgcFooo0RGozDAYDB768qOPP/HMqZtntKT3rVURL865kOydmTDhvR6lnHi0PSTK8gRFIaQAeEegJLkVtig3qxkMbOvWDZPyCVNHt/l6rzwWAKmcaEONuxtw2hmnTs1M7di+a379egDbt2+/+IUXb922befOnQA2btx44YUX7tixY/OWzT3hKLXSS8vE9R0nSpOZuQmWdE8b103/gx9+2/aNQ08ps14okI4lT7vogpKWUjM9nP67O+/9zf/8J7Dh2hZeaSIvnKtCS2mrZr34qZgbsalTVcWHH3309nseufzckybq3Vn+vh/neeYbZfWyyW2lej2dRGYHdb/s/3+kEJiYEizKPGn9/HDblumWACNfyn34+q08Fk3MVoElwisbJ2iUUpL/w3f9hIHunJ6eTim97tte/+obvjVHe8nTVddee+nll4cYLITFJg2I5B7QwN0QpU6rxkWoXJG4fNGn477yvMAlllIzN2VveMVFL9hsqSetxiM6bLtvG6EipqcWfuu9zRowSSMc9JTVRbNWowQgGcCayiJjbaE/N27DSLonVNWffvyTb3r9FZtjCZddKlLmrTZkJY+WUTynEqAgEMasXEHI1GgMOulIfa6D4YjCHD3QPGGEMCtFQ9yxY3MVICkz1txyS+KJiPOK8IcEwtzdFWw4H0MwhJkNW/qTCObm5vo6/HOzM3OzM/kN4ywYNTMrGjK9sY2MWXTYbSV4S18Xk5ddUi5XoGEaS1PmonmZ1ZBbLos0bFZqLPr1lpJigKe1FNCK7PgSPoj3SKOBSJh0lrQ9ohBcIURUg7+59Y4///gdb33FxXWSEYFBJRN2A8aqm+ZQGi1QkMYCKGvQVVmZBESLIUjB/UidwyPNnYccZNC9SZWFC895waB1ygRszSsqfq3WIdOtmdWsQpKF4YYPfPjmBx+8G6OmgpfRDaAZkxctTRUQVIDcGVk3jjg1vO/RA1YNEpCQwsTE9BTSTgRXRSslHW1pAMta6o9IybnatJoV1rnZRAampYXm5olez2nrRh2ikY03saoOLhz+nf/2/svO2n7qnu2WNSloGQN0YMP6uUtfeNaOnYuMwyxxWSi2cAtMAsPwmWcPPPDgV5JHA48NjGTGTnKPMdQpGRTQvOjCsyPg7mTIQ5pODD9P/YlJWQclDuf+7o4v3HLrgag6SElSCDS6exZfMTMSKTlJlwIJH5mxQWXDOZueS8pTaLxFiboH8A1OPr5eTMBSxW97jJgtfRf1+yTMUKtZyNxqJFr87N33/9vf+eDP/+Q7clssA0AZLElnn7zzR97+xsVRUhlL1d1ANcDINT2c+qM/u+2LX7gvVFNOajXCtgVzdyVVgVKzcf3MaSdtnoh2Lbmgr7u3zQ3xpT8ywSRU0/ODqdkqqKl9ZjholOsXChnJIyXJ3XKzrXtFwFOyUDvGyhil+oKO39gy7tcTdWrrYeiqEYVFTYBeasSgT2oMWRUzpSpGd1XD6b0HD/7H3//IlS++5nUvPzsS8oYEEQlsXTez7YLTjnEGD+478IV770qesrjFqve4kSxkDrKnxUOXX3XZKTs3Ag0CpOdn7I9DbtuJQGdZa0/unoKFJrkDdd1IkiNWsUkudzCLzIa6zsQbS2rVy0mYEzKDkrN0GH3Tmzt+lVXmErq1NSwTE+klYCrNtqXXQ/3+JIPYNA0t1I1itT6l5p/+0r9ZOPiWt37bi2OoxhpDyRiTyyCkBBpoYO5cSzBGq/bX/kvv/i+fvO2e4fTGMTxJcVUhGMFBOIfBUlq85opzNkwPU1oIIerIDs2v58qz9mgqAxHdzQgwKdHUZfIhWvIGKiU1ubuYx9yA7jKZkZaUAg3yLKqKzMJgaNsv+U1svfD8Ty+Te1TU5HORHm2PLJrc5K8lMSQkoZW2gAV3NTKz4cN7n/vn737Pffc/8I63vHrnjg0Dos65bva9Ob42BhgQFoB77n/sjz546/s+dIuHWRdlKVfDuFpLqIPBQr2wcN4ZJ3/L1eeTAoLk5PMLvOPxGUhWJitMRgllijYnAUqybmhiB3OW+Q8ZOTBlFQWVnq5CbqRQ2GJ2guea4kTQsehCgAiHBU9GucHodMLMS1shuhGm7djTAjoqizU6PU4Nnzq4+K/e8z8+e+dDN95w3Ysv3r1r147NMwGYaBiNhaf3HXrkqb2f+Mwj73nv+7744GNhaj5l0KDt8lsNyHDIQCKNrrvyogtP39XIQ4hCIlJb2zhR3nZZntZWoQO71sA12YyUb+qkx00dccVbHWDim9Tt8qvYEcot/6bSK5ah6WYcwyC5MZqUIOcqUwKZCfIeLFQzjNVNt95+8yc/de2VL3rVy6694Jyds7MxhuCeFkfjR59cuOveBz5+22dvvf1u2XScW994ToTzVLvVvWUkk7sZN6wfvvrllxrQiD6ZGKwTFucJk7XSMmeK1gRNndb5qqFiYjeWY8LMy2mdnAVK+CZOFb5KokPWBbN8jWIV48b5Dfue2UsOmwI020THqut+a0dwtWV/A4JSapCcFmbnRp4++ql7P3LLnWZhfsN8HAyaZvTcc88mF6xyG6ZqvQioMWNwmmcOCpOtynzTMNrCgWevffWl173kHBV59ExEfX7cHDsOue0E2J8I9mZWYlutWfVfq94j9fLyblLBhB38P1lqm3lYlLJMWFWFN3/7SzdMJ0uHqKYIh/hRLGsWX4GClNV4QGuAsVvDYc2pVM3XYd1TB/0rTy88sb9JcT7ZukYz7sPAKSYzR3B1rLZVORrM6jGjA9s3DN7x1htnzOAyqjcbSGu3D/a143kt07C9E63kc4taqjea+Wj/Mmi3pNJc8j50bGDif7pXqxHbcjZ99LpXXvj6V71E4+dikBKISFrrB1poUxNxcoNIJxpScqciEFOy5EFlvkAwGmHuhEJllSVao+iMKtahqCStdoeVP47j73nTy6+6+OQsIN3i3exNLTlBcV7XESiZE3kkqnHCXHDTKmGQYOrG5nq/xZD0gDUKrf//ceXRzGFygzWQfDQ3CL/wj773sSefff/Nnx1M7Uhjl42yUGkx+6V/LO/xHGKRcHqKwXLKQoYkGJncGRgIdyYHwcbdotWpNgaYqSgNeyoqGsdcK8EOHzxw48su+al3vmE6WlaJhUI7BDGL9aW+SPVXqw3f52wtW8xUj+nVjm9vqYGpWYQ3gEzNWtiejqrkuxYsDgrDbEJIDC3CWrxTmbBTUr/JkDGimwG0fO5fa+HX3ExZDEafFKWJl+DSopl4VHbTqphK1vxk6dJBU29cN/zHP/WDDzz1f99x1+Oz0/NN4WapUzJoy7fMXKZcxzVCnszKvGcjPdcVJFdiMUhJhoQG0VyZc00yqI2aSlvHEUzl3G4xWhidsWf7O7//DRtmpz3lnFidjAs7augkzfBJrHSEtN6qyo2NKIcF0DBJJZwyWJBJkOVJS25CQGzGoxeet+fCs7d7aiqnAWn1iQ5BjkEVv/j4czd98vPDQaVGWaJI6FVsmTNlQ+Zd0A2JAlRRFnKzGDWZk5anDIOZumOSyU3iMYPGHHZJISiWYWIT9RNDlwotlazqZnp70ajO7TNcpQON7kZ4oQkneUVKOu+Ujf/yZ9/x4z/5/zzy5F7GGYcxlzGy0FZXTsyELU/stoTTOiEOdrGXsZTPJvIck0jLi14wmaiE0upsRSrWPRDGRhq96KIzfuEn3nLdxad5I2OuWlhCERxqe3+sbYJzooVgJiw37wh/cS1UlLal1KyTlC7AO9u7nlmTJKxeXHjDt770XW+7bgQM11ZwFeDCNPE7H7vjI7fcSQVJRCjz76wb12n96ZmdJXJSa6Cu9MLQJcMdj5z12KoIdEPiV65WEGpT7sk0+fy3pcuhpyS00qzH9lOKrFPhbJL0prn+haf++Du/41/91u9+/vFDHM4FM08pWJDnBetmTHLCLQR30W2JgmlPMNXawJAT4kUrzqFWUS9DK3mUBpm8oQ1EDAeV6lFa3H/ZRWf+s5/83ldcfHJymbEd9WZF9SDlyktHolQ7inHJYFauWT+v3btLEiuCBo95VasbYwkXGOj0sTULAQgphVaydZWUR2oaaRCq1FgaR0y5BSW1mIG3JDxSMEfljClaiiZCSoFunlQL6pge+baSjvbJJljCwDE2KwBtJ5HUm0SMEj8hGczlJu92MZZQJYXJ+NrOBXeiTwLyVMkV3H/vuBMDSii2c0aj2Tjpu298yZYt63/m//r9Lz34RKymTCFrBCcDoyX3YEQm3cE0IcV5byxCGUkuVI7QNi1JuSFoycO2JAuYpjViDcotBQ6aZjQ+9OwLz9797n/yv110zs7aPZgJKaEWAhAqCgww68Uz2UB5jRio4HWWugo5Umrd7qo2r0i6ceJ0HPIAB3IXaidNSUOWqiwj2yNETzRbQ+dpgyAiBIEOb5Jo7SDMEo4kK7FcHozOZR1+ZXtZj8kcJm19ciCKlhhEm1BsuMK4QS8SdIEde3c5PctbHQEunafcm4fKDg7RCrkR+xMfoMI9ZFdHMDXDEN3shusuPHn3nvf+3vv/0+9+KLGywZyHYe53pOXqWOIE81sacqo/iU+GVBTOSCq2ooId31si62ycFWKMRFo88OT2DXOve+0rvu/vXX/F+SfJm7Y+ZYaQQPqhg4/fauOnaURooESRHhPpNjXcfhWrzQChkNXzgdA53rgmoF0graWoC0zMwydIYapVGzTJEAeNM3lLYixShyvMFNVy0ZAsbK0QKljM2p5FEBssntdMZLLUUI0pmBfwXoHeRQBsZ/V0bfHe2aGsw0dYEXfGcl2UvPIcoWQszNVoOtqZ0gLQKIO35a9aJaelTI3cFI5J58wKo6VTixypNPd0c8hINAFQCi86fcM57/ruzesHf3XbvX93532L49Fgej6lLCOoQlAlfeko5S49au1007JvCcXshlgAuJS3YkLNQACDMEiLh1QfevkV5333G697/auv2Txk8sbYGmsnrKogaPHgl/4i7L1lEMfgYcrMBwYkt4Vqx/Q122zDRshgbGVZJj4jroqYcNIowMKgRRCCLOUuEZO65CUJsKC2l1ZrrCq1ZdkGTFLMo8Jzl3IxA2YOMvfMdz31y+ja/aa7TNC3tj+6rO6Qg1EF9PI3Ll0QVgYMM3RarMWPWoukWbfKuMKVtMKnyAMNeLSCY1/mO2TWtayM3lDI2qwkPGmqCu/60e+66pNffP9f3vzBmz5935cfm5nfzDCok+fKmAATRdhEx3c5UV/tglc3F3Cy4/IYalbGNDq4uH/fjo1zL3vZZT/0tjdec9HJI2mUvCqoXRf65tJx3Di/vt6PQRwZxhCDO10IweyAH34qbKhh08UalIKAYA6EuFp9wnsGKjroNChCA4mil6nbUhnUIkcws47AXbTOoWU9/MvV7J0KgGip0B4s5VYEtELgyGNK2q/JEgGqyy37GYaWTGjwPDS4YTpkDWi96da9SL/znfn5G4G0wKbiBJlnK2W80oJSr9NYjjRmU6M3xWVZmkIpsGkjaTNvyFQWt5PBkBekyd1DSq+4/MxrLz/zuisv+t0/+uu/+bu79+7fb3FAqyiWRkOpP4233zAgMFnsU62UtbyzcciMyaZeOLhvz7aZ666/8lUvfdG3veql89NxVKcQQwi5JpBr6yxUPRitihtOW3h4ffQF48AdQIiSu5QWFp57tNpVNDhN1osIBCoeU587ZWWbyE6bNuMKHDibxBTMYZ4niXTmJTVIns1pN3J+WXzdxyxZ9GgboDLAYAFV4wDN6a1yMIQUIt3Gbk2ioIXgFSihAuQMsuiWeoQlpayJVgbKYcNweP6pm5/ZX1uIx1AwloSQOd1Mi2HPzg2DkNqkoUj99FqC2xWfAZRQJhasmxmed+rGpprTsaeWycVAWhYhnQoaDgOAUPVhmxSMhuDJK+Lbr7/0lVdc+rl7v3jfV5758E23feKTn316/yIGMyJDjMl9meOWSiss5YFFPtocNBoaqAbqxcMHd+3cfslF51x12XlXvvC0F537gukAJHnyYWVdfE/SUUSa22Q8av0ZTbUJ9WOBYJIC6pBIWRql/V/CeC+q+SJynzvIWfZuXGOBsds68gTVQbUxjTzBqtJAJwcVGAIV2rk9uTcIXKHnfenXpeRu8iAhjYNVnWSOAUByupDM3JEAGR1MEESH6GRPQwwd0bcRAxEC4X72maf86r/48ULKXxpvLdVxKFyzvNAGDFvWT2VxiVwoZDcLbrKpXNnwuGeQ4cILzvp3v/5PUmtdeZQ4T0tADkRi5/bNUsNCHbNe93IeRi6vfX6KV19y5lWX4Pqrz33o0WduuePRW++45/bP3vnIY48vjsbVcMoTaCaahSDBPWs4uysHdKLk9WhmerB755aLLz77umuvOPeszbu3zu/asn4acFeq3WAMJveeIHURHzC1xXpZmN46vWGXP3Un6zrEYQM1aIyENfHgIzr0JDeeZkpZVt6JBBLBwFVQlRa9yztaDiYmhBFtofHG5IZxEFtJLyrVAWN6AyDRcq/KaqAKHZXDQ8mCxkOrEhO97eEVDB4QkIxAxAAqo5Tb9eLtXMyu2Zn9/kRPNMPc7ODc2Z1rLFQfQfdJy/EoWr87kGUgQgxwAvMz0+edtvurpf80R6D9k6F/eVBDni25Z8v8ni3z55116rd+y9lPPXPdwYOHnt67+NgTTz/x5N4nntp78NDCaFyn5O6IVYhEjHFu3dzuXTu3b92yZdPsls3T62enN2/euPukLeusG0QDM8LCipX9ltzRk0yd2sy5bc1TFTKllzm8pZH14b3NgSeqjXVOSXKqaq2sZDymkExowzwRTaAfXlw876xTvvON16yfn09NCsGWQBwUYPVofM4LTkopT8FhWANDOoHjBqa0c9um77zxqtmZ6UaTyCvPcJciGRYPPXfxWS9QypWMKkNiRDJIRQNAfXXhMoWKELD/cH3YPdqqTWv98Q7whlWFMBmNV4Y1aEkqK4gyuDO3miRpeXi70itMGi8m/bedBr8vWezqIPvUjsVwKQBVtFNO2nT6ns0G1EA99lHTjOqmSQneWicyd4+GEAaDahDjoGKeRJuSj8ejZx2dtHxJlJaFSQKQZ0JMQjRKQ5vixtPTQ+vhI1cCVJW8St7s1777sHsvbV6oek3mAI/pbb00lgpIhmbIejraa6+8+FVXXlwdC5orHzq95m0egEEAgCsvPP2KX/mRVVfqnV9+jO7wjv+XWNp+W6UqWEmYmcc18Zl9h/7r+z/2ybseCcPharFXpKKrcXi0QRt/j8u8NxDMw9ZBhazOlCsFCQjBkpJcklVmUDpW/2qH9eVyUJdDd9MHEApURAdSaUKTJFioPLePmtyTwZCcGV41A4zBIHkeaWR5Uk1yiEJKqRg2VzsbSCFYMoyTR2MQ5G5WKc+Yy89IalX78pCYQKIZHzx957qfeOs5cf0pzVPPWDD3Ggj5eLQ6PfeAxk9yal2eGMYyjVE8Vm6bi6mAgw1DEIPN/eEHP3H77o1jgAgZMc6Ni17sk5JcCAM44WO0RlkriCP1DWWSkRgojcFxCBFuKrNCuoZbZwAEb2bAex7eq2rgtDzyLxcNqWB0rvCkHeCBxcW/uu2zf/QXn5uamVtlQIpImnsDK/Ve5Pqk8lRDA11sAFAVJbDJxr6ULOCgU1URwu7zvo4wgaLIHDUpc3ISrZ3l3c4i6ZUxc4QZaJ6l87JqsVRSzxLJ58TCg5m7QM/V01aKyIqwKyXP8AqtIGIuItLoRS3Ge8w7k0KRgIQT9GC0evTMd77msmrjDfWGM8aP3zEMjQUzV5IzmIe4cPDh6tBDceoUysHQxxKOOvubhRjgQnTEWkRV/Ytf/5PUHAQJDqAh5OAIGAARaDK2DEUgAQ1YQUIfyj/qawD3oFEKEYxAQnIwYiJb2xSNEh2OAqupNL8+KCcDTgQoUmm5jSkNlkmMiRxh0IR1TZhxpWNGt25lmjzlIVjlSbDQdv5mpnRFAagyXiHKHSFWntyC3JNgWrYPVrgHEhqzkLUZreTLQWiNnCln6J1Kbv6jBC/xuZNCyANR5SCDhTxsi7k3K0DugTKL7qUFxpnNp7IkWnKYBQFMyaiUCNBidDo8Y7hl4SdZGblpJJlIDeYuvfTFwDqb3u7VEDZ2pVz8aZLDKvPDeO4hbF40zrZ3IE8ERWQ/QYPnuVjBguVxvypTrkjJOD2/kVzfgskVJFrtMEcWsE/Ms97koDtCHjW2eqAnAxSUZObFQ3ZtQpb3nmQkqHVREnjYUWqybi6Rydgpw7V6SCaUkNCSo3HQ8pUcO+GxxhMYzHKRhKU0zkm/K9GDKbNXNzQQzerUBIsw+pGmdQW5iIiCxuUNyjLRHa2AOyZCTz1tQssSqzQoKXme9hkyBNCCtmwloWhi6k5Gue2KWW/Pk2gsuhbZ3AZKSO6wUoKaJIJsZ8E0boHONIjhsgvOACqb3bnAUAmQpTxdzs3gAx1c3PvA3OmHgM3LlOlif+ozlIAYyKkq0kWGBikPd6FlIlhLzpATRZcZbFplNzgSs1dQJqBoLeOFMyLjAFLKYdOSOmSm5Hrh3tUgpIomeJ2SxSpTF9Q0tGYwCJM7n0WkPVOb8rSDBmqOzVxSqXdYarIr1JFWq/TrsIMPNanPGRK8uFmtVKyZQIF9spW8pBOpdxj221yWiG1YKGFEyIOvwnJaZYspsx1LV8qfpb6WsyQZS7Q3mSbW7aYjpNEAOD3AAkAmr0en7Nm6Z+s6ADa1xQfr1BwixhkLCQxEE7V4+NDjOPQopnexKOYSyxgD8nLs6anhGaeefPvdf+ecQqSkUJm7slgPuwk36uiYneBC6w8m5HU+r6ZnYSU5wdJJbujUbygv5Ps8TjkHytq8ad3cdNVCAez3Lkj0MjvRrJViKLwK72n525KRx6Xqu+Kbu0LtMsq0uKSq5/1PZpf+CHhe6isrgj6T6XdAX9KvD1GqGwCa/XYXeGsysHIisUmtOuApuQJJWlOPzznjtHUbZgEwzszOn+R7nzMfB4PgQm2KoFs6PN774GDX+QhTKrOYDX3ifO77T0pzVXzp1ZdQC2RNU0LqlMgzTJq5H7lcXwD89n+1CtD6qv7h6D/0lqOX29yzAIlZdG/yoG9Pi99y9eVb1s+qFBvoPSyKIBQoM9Ha3g4rAdbki0493VAqdUd9syb/97/t/7b/VxSZBdlchfRYVPDX8q9kD923Zczt5B3o3rfkd+3ty/Mrc7Wsm5/ZNnbYUtBu6ZPof5vnHZalG9A0L7pgz/zMIElWzQ63nT/SPBAsg+6WgEQS9aEDj98rP4R2eGLevXGSZ5Jy5p350qsuuPry8z766S9NzW4wg8uTqwqxrwfKHn5xAvq0PCQgoejkG0UmWKCREWM1C+eftes7Xnv1VIze1LTKiX5LkU3Gaia3CcXhSH7eErfa++GKbz72b5f8nEfpVdYRzHkulS1Qi4C1bFKuPHtIS2T9tLxUcmSOs0KOL06YnUtingKsxgjA4ZK0df26C8/cbkAthbjOt1yYpj6nhacyecfL1FVDWtBz96N5VoPdzE2J7OK8Hm+Y5LjxU7fN//0f+LZPf/439h3YRzKEQTAbjxfZzTmd1NPCiVl5yWtkGClPlVYIVKrHUu3NgfPO3vMrv/DDV567R16XAdAFD7aWlqKIFNFYOyBixerZkU//yKeJlR7r0T5q2RpYWRRjqWpxX7GtRaDYtbx0ZbtJfwzbdrReWwj7TcDsphtMOFtkaeblhP5guVq1IlWbgqAKllJtIYxGiyefvuXs004uzhxDG2wdzO9MC3cAaK2/EV5xFOq9XHwGM94nL8WltFhLXkcLIF513Qt//V/+gw/fdMvddz9w4OBhwRiCvI0GyuxX+IlSkEUpkE2IUqZE1HPTvPTCF7/je19/0ZknIzkhFO15tn37eb8mX3zOF56ticZXWhEnYOmtoG7xfOWSVxoXwCMM58oH5cr5Tr+Zt0V7l31UqW4IVotkPYzpwDNnnHrmGbu3QHVAlFestlabTznweART8ugpIDm4qOCoD433PTnYmIDYbZioXqwsVwghG+Ep4tuvP/8115//1zd/8ZHHHvOMxLTzsduGg96oiBPSndruXxNFOZl2bNv0smsunA+ohWCUk+g157LgR9PD+MILTml8FKbnk75x2t/H63OOseJxFDPb5wjxyPM5Vm8pS7WQlRPSIj2lHS97yXnB0CQEggyw9dh4tm+/eoxaqCSOlcAxaKgZ4iZ07VCtKkzNrCmzRNM+9xFAkFnHC19BMkkrsTCOJGWsxkk+lodaomDQz/AnpsPNycBeVCTA+gUE703q/F8vHCf9rNS26Rd+ti0Ah3pwQOq18c86BllNLeRCsqvhpHO9W3nen2DesnCPFITUibN33idLJICpXZChi4qsO0Xv9Uk4IKHYcjvaJli2S55v+LYWv7zScXX0I6+6IZ+fyesVLfsxZa+SqaM1CXRdcq22VWhbUg3qtTCVLsJS0ZZJakhm1q9atSmDch/GEkaFOovcVgBbqjr7k6ttAlXoBK086xvJ0AFQS0Vz6bkfpmhrsNN9tLZXfKLptaKT4VF560d9M1f7qDV8Mo8uzvV8D3usA3J5v9JSRHKSbBzxUeq9N/Pi84RLtR1YpQMhwVUWZpb6ae+5emltG7cvq2r3JlJweY+pjrw7OnEhno6iHNDT+6GWtGKw3w62dNf8r9dXAV33FsikXZ69ldfda3KJC7XCs+3B5/8fTCY8D3GZ5bcAAAAASUVORK5CYII=" alt="HG">
+    <div>
+      <div class="title">한길승강기 현장 점검 관리</div>
+      <div class="sub" id="sheetStatus">데이터 불러오는 중...</div>
+    </div>
+  </div>
+</header>
+
+<div class="progress-wrap">
+  <div class="progress-bar"><span id="progressFill"></span></div>
+  <div class="progress-text" id="progressText">-</div>
+</div>
+
+<div class="toolbar">
+  <select id="assigneeFilter"><option value="">담당자 전체</option></select>
+  <select id="teamFilter"><option value="">팀 전체</option></select>
+  <span class="tool-right">
+    <button id="viewBtn" class="sort-btn" title="보기 방식"></button>
+    <button id="sortBtn" class="sort-btn" title="정렬 바꾸기"></button>
+  </span>
+</div>
+
+<div class="search-row">
+  <div class="search-box">
+    <span class="sicon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="20.5" y2="20.5"/></svg></span>
+    <input type="text" id="searchInput" placeholder="건물명 · 주소 · 승강기번호 · 비상통화 검색">
+    <button id="clearSearch" title="초기화">✕</button>
+  </div>
+</div>
+
+<div id="warnBanner"><div class="wtitle" id="warnTitle"></div><ul id="warnList"></ul></div>
+
+<div class="filters" id="filters">
+  <select id="quickFilter"></select>
+  <button id="monthBtn" title="다른 달 검사대상 보기">8월 ▾</button>
+</div>
+
+<div id="list"><div class="loading">현장 데이터를 불러오는 중입니다...</div></div>
+
+<div class="bottom-bar">
+  <button class="btn" id="addSiteBtn">+ 현장 추가</button>
+  <button class="btn secondary" id="specBtn">제원조회</button>
+</div>
+
+<!-- 제원조회 모달 (우리 현장이 아니어도 조회 가능) -->
+<div class="modal-back" id="specModal">
+  <div class="modal">
+    <h3>승강기 제원조회</h3>
+    <div style="display:flex;gap:6px;margin-bottom:10px;">
+      <input type="text" id="spec_no" placeholder="승강기번호 예: 2039-840" style="flex:1;">
+      <button class="btn" id="specGo">조회</button>
+    </div>
+    <div class="placeholder-box" id="specResult">국가승강기정보센터에서 전국 모든 승강기의 제원을 조회합니다.</div>
+    <div class="modal-actions"><button class="btn secondary" id="specClose">닫기</button></div>
+  </div>
+</div>
+
+<!-- 현장 추가/수정 모달 -->
+<div class="modal-back" id="siteModal">
+  <div class="modal">
+    <h3 id="siteModalTitle">현장 추가</h3>
+    <div class="field">
+      <label>승강기번호 입력 후 [자동조회]를 누르면 주소·기종·검사월이 자동 입력됩니다</label>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="f_elevno" placeholder="예: 2039-840" style="flex:1;">
+        <button class="btn sm" id="autoFetchBtn">자동조회</button>
+      </div>
+    </div>
+    <div class="sec-head">현장 공통 정보 <span class="sec-note" id="siteSecNote">이 현장 전체에 함께 적용</span></div>
+    <div class="field"><label>건물명</label><input type="text" id="f_name" placeholder="예: 성산고시텔"></div>
+    <div class="field"><label>현장주소</label><input type="text" id="f_addr" placeholder="예: 오산시 성산새싹길 12"></div>
+    <div class="field"><label>담당자</label><select id="f_assignee"></select></div>
+    <div class="field"><label>팀 · 지역</label><select id="f_team"></select></div>
+    <div class="field"><label>출입 정보 (현관·키 등)</label><input type="text" id="f_access" placeholder="예: 현관 4533"></div>
+    <div class="field"><label>건물주 연락처</label><input type="text" id="f_owner" placeholder="예: 010-0000-0000"></div>
+    <div class="field"><label>체크사항</label><input type="text" id="f_check" placeholder="현장 전체에 해당하는 내용"></div>
+    <div class="field"><label>비고</label><input type="text" id="f_memo" placeholder="예: FM현장 / 신규"></div>
+
+    <div class="sec-head">이 호기만의 정보 <span class="sec-note">이 승강기 한 대에만 적용</span></div>
+    <div class="field"><label>기종</label><input type="text" id="f_type" placeholder="예: 승객용 / 화물용"></div>
+    <div class="field"><label>점검월 (검사)</label><input type="text" id="f_month" placeholder="예: 1월"></div>
+    <div class="field"><label>비상통화장치</label><input type="text" id="f_emergency" placeholder="이 승강기의 비상통화 번호"></div>
+
+    <div class="placeholder-box">
+      승강기별 <b>특이사항</b>은 목록에서 체크박스를 눌러 나오는 점검 창에 적으시면 호기마다 따로 저장됩니다.
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn secondary" id="siteCancel">취소</button>
+      <button class="btn" id="siteSave">저장</button>
+    </div>
+    <div class="modal-actions" id="siteDeleteRow" style="display:none;">
+      <button class="btn danger" id="siteDelete" style="flex:1;">이 현장 삭제 (내가 추가한 현장만)</button>
+    </div>
+  </div>
+</div>
+
+<!-- 점검 상세/검사이력 모달 -->
+<div class="modal-back" id="detailModal">
+  <div class="modal">
+    <h3 id="detailTitle">현장 상세</h3>
+    <div id="detailBody"></div>
+    <div class="placeholder-box">
+      <b>국가승강기정보센터 검사·등록 정보</b>
+      <div id="apiInfoBox" style="margin-top:6px;">불러오는 중...</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn secondary" id="detailClose">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 점검 완료 체크 모달 -->
+<div class="modal-back" id="checkModal">
+  <div class="modal">
+    <h3 id="checkTitle">점검 체크</h3>
+    <div class="field"><label>승강기번호</label><div id="ck_no" style="font-weight:700;color:var(--primary);"></div></div>
+    <label class="bigcheck"><input type="checkbox" id="ck_done"> 점검 완료</label>
+    <div class="field"><label>점검일</label><input type="date" id="ck_date"></div>
+    <div class="field"><label>특이사항 (지우기 전까지 계속 유지됩니다)</label>
+      <textarea id="ck_note" placeholder="예: 도어 소음 있음 / 부품 교체 필요"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn secondary" id="ckCancel">취소</button>
+      <button class="btn ok" id="ckSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 설정 모달 -->
+<div class="modal-back" id="settingsModal">
+  <div class="modal">
+    <h3>설정</h3>
+    <label class="bigcheck"><input type="checkbox" id="set_warn"> 점검등록 지연 경고 표시</label>
+    <div class="field"><label>테마 (화면 색상)</label>
+      <div class="theme-row">
+        <button data-th="light">☀️ 라이트</button>
+        <button data-th="dark">🌙 다크</button>
+        <button data-th="navy">🔷 네이비</button>
+        <button data-th="mint">🌿 민트</button>
+      </div>
+    </div>
+    <label class="bigcheck"><input type="checkbox" id="set_wide"> 넓은 화면 2열 보기 (폴드·태블릿)</label>
+    <div class="field"><label>네이버 밴드 주소 (현장 카드의 [밴드] 버튼이 여는 곳)</label>
+      <input type="text" id="set_band" placeholder="예: https://band.us/band/12345678"></div>
+    <div class="field"><label>기본 글자 크기</label>
+      <div class="fontsize-group" style="margin-left:0;">
+        <button data-fs="13px">가</button>
+        <button data-fs="15px">가</button>
+        <button data-fs="18px" style="font-size:1.1em">가</button>
+      </div>
+    </div>
+    <div class="modal-actions"><button class="btn" id="settingsClose">닫기</button></div>
+  </div>
+</div>
+
+<!-- 밴드 검색 모달 -->
+<div class="modal-back" id="bandModal">
+  <div class="modal">
+    <h3>📗 밴드에서 현장 검색</h3>
+    <div style="font-size:.85em;color:var(--muted);margin-bottom:8px;">밴드 글 제목과 건물명이 다르면 검색어를 줄여보세요 (예: 소프트빌 → 소프트)</div>
+    <div style="display:flex;gap:6px;">
+      <input type="text" id="band_q" style="flex:1;">
+      <button class="btn" id="bandGo">검색</button>
+    </div>
+    <div class="modal-actions"><button class="btn secondary" id="bandCancel">닫기</button></div>
+  </div>
+</div>
+
+<!-- 검사월 선택 모달 -->
+<div class="modal-back" id="monthModal">
+  <div class="modal">
+    <h3>검사대상 월 선택</h3>
+    <div style="font-size:.85em;color:var(--muted);margin-bottom:8px;">검사 미리 준비할 달을 고르세요 (검사유효기간 API 기준)</div>
+    <div class="month-grid" id="monthGrid"></div>
+    <div class="modal-actions"><button class="btn secondary" id="monthCancel">취소</button></div>
+  </div>
+</div>
+
+<!-- 지도 앱 선택 모달 -->
+<div class="modal-back" id="mapModal">
+  <div class="modal">
+    <h3>지도 앱 선택</h3>
+    <div id="mapAddr" style="font-size:.88em;color:var(--muted);"></div>
+    <div class="map-grid">
+      <button class="map-sq kakao" id="mapKakao"><span class="ic">🗺️</span>카카오맵</button>
+      <button class="map-sq naver" id="mapNaver"><span class="ic">🧭</span>네이버지도</button>
+      <button class="map-sq google" id="mapGoogle"><span class="ic">📍</span>구글지도</button>
+    </div>
+    <button class="btn secondary mapbtn" id="mapCancel">취소</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
 <script>
-var U="https://script.google.com/macros/s/AKfycbyLSQfGCNkkzufjEddlv1pzKlkhp0llxsk5mR9VMxAgxOtl6GrEH86B5_MnlhZAIl9A/exec?token=hangil2026&action=raw";
-function show(h){document.open();document.write(h);document.close();}
-function cached(){try{return localStorage.getItem("hg_app")}catch(e){return null}}
-fetch(U).then(function(r){return r.text()}).then(function(h){
-  if(h&&h.indexOf("<!DOCTYPE")===0){try{localStorage.setItem("hg_app",h)}catch(e){}show(h);}
-  else{var c=cached();if(c)show(c);else document.body.textContent="앱을 불러오지 못했습니다.";}
-}).catch(function(){var c=cached();if(c)show(c);else document.body.textContent="앱을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.";});
+/* =========================================================================
+   한길승강기 현장 점검 관리 앱
+   -------------------------------------------------------------------------
+   [동작 모드]
+   1) CSV 모드 (기본): 구글 시트의 모든 탭을 자동 검색해서 전부 불러와 병합.
+      - 시트를 수정하면 앱을 새로고침할 때 자동 반영됨.
+      - 점검 기록은 이 기기(localStorage)에만 저장됨.
+   2) 공유 모드: 아래 APPS_SCRIPT_URL 에 Apps Script 웹앱 주소를 넣으면 활성화.
+      - 데이터를 한 번에 빠르게 불러오고 (시트 비공개 상태여도 OK)
+      - 점검 완료 체크가 시트("앱_점검기록" 탭)에 기록되어
+        직원 20명 전원이 서로의 점검 현황을 실시간 공유.
+      - 설치 방법은 "승강기앱_설치안내.md" 참고.
+   [연동 대기]  fetchElevatorInfo() 등 국가승강기정보센터 API (지금은 안내만)
+   ========================================================================= */
+
+/* ---------- 설정 ---------- */
+const SHEET_ID = "1Z_2PNaB5qlgaT1n7nzgK4PlMJlToOBAxdOJYxngg7tc";
+
+// ★ Apps Script 웹앱 배포 후 그 URL을 여기에 붙여넣으면 "공유 모드"가 켜집니다.
+//   예: "https://script.google.com/macros/s/AKfycb....../exec"
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyLSQfGCNkkzufjEddlv1pzKlkhp0llxsk5mR9VMxAgxOtl6GrEH86B5_MnlhZAIl9A/exec";
+const APP_TOKEN = "hangil2026"; // Apps Script 코드의 TOKEN 과 동일해야 함
+
+const EXCLUDE_TAB = /해지/;     // 계약종료(해지) 현장 탭은 제외
+
+/* 시트 연결 방법: ① 직접 연결 → 안 되면 ② ③ 중계서버 순으로 자동 시도 */
+const RELAYS = [
+  u => u,
+  u => "https://corsproxy.io/?url=" + encodeURIComponent(u),
+  u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
+];
+async function fetchText(url){
+  let lastErr;
+  for(const relay of RELAYS){
+    try{
+      const res=await fetch(relay(url));
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      return await res.text();
+    }catch(e){ lastErr=e; }
+  }
+  throw lastErr;
+}
+
+// 탭 자동 검색이 실패했을 때 사용할 예비 목록 (2026-08 기준 전체 탭)
+const FALLBACK_TABS = [
+  { name:"전체 현장", gid:"1328127138" },
+  { name:"최병관", gid:"1982746152" },
+  { name:"이진호", gid:"1470805872" },
+  { name:"이기수", gid:"388955103" },
+  { name:"박성빈", gid:"957620584" },
+  { name:"김용우", gid:"1083238918" },
+  { name:"이용국", gid:"1515974587" },
+  { name:"김진욱", gid:"118623110" },
+  { name:"신재민", gid:"1930853307" },
+  { name:"김태욱", gid:"450194534" },
+  { name:"오정석", gid:"468215261" },
+  { name:"2동탄현장", gid:"349852457" },
+  { name:"오산현장", gid:"177185166" },
+  { name:"화성현장", gid:"471866709" },
+  { name:"방교리현장", gid:"1585879782" },
+  { name:"평택현장", gid:"795749976" },
+  { name:"해지현장(동탄팀)", gid:"680365411" },
+];
+
+/* ---------- 상태 ---------- */
+let SITES = [];               // 시트에서 읽어 병합한 현장(승강기 단위)
+let PERSON_TABS = new Set();  // 시트 하단 탭에 있는 담당자 이름들 (이 사람들만 담당자로 인정)
+let addedSites = loadAdded(); // 앱에서 추가한 현장
+let edits = loadEdits();      // 현장 수정 내용 { key: {필드...} }
+let checks = loadChecks();    // 점검 기록 { elevNo: {done, date, month, user} }
+let notes = lsGet("hg_notes", {}); // 특이사항 { elevNo: {text, user} } - 지우기 전까지 유지 (월별 초기화와 무관)
+let regs = lsGet("hg_regs", {});   // 정보센터 자체점검 등록현황 { 숫자번호: {ym, chkDate, regDt, user, company} }
+let insp = lsGet("hg_insp", {});   // 검사유효기간 { 숫자번호: {begin, end, status, kind} }
+let ins = lsGet("hg_ins", {});     // 보험가입 { 숫자번호: {company, st, en} }
+let insp2 = lsGet("hg_insp2", {}); // 최근 검사판정 { 숫자번호: {result, date, kind} }
+let pendingQueue = lsGet("hg_pending", []); // 공유 모드: 서버 전송 대기 중인 기록
+let settings = Object.assign({warn:true, dark:false, wide:true, fs:lsGet("hg_fontsize","15px"), band:"https://www.band.us/band/77575553"}, lsGet("hg_settings", {}));
+if(!settings.theme) settings.theme = settings.dark ? "dark" : "light"; // 예전 다크모드 설정 이어받기
+let viewMode = lsGet("hg_view","card"); // "card" | "list"
+let filterState = { assignee:"", team:"", quick:"all", search:"", sort:lsGet("hg_sort","sheet"), selMonth:new Date().getMonth()+1 };
+
+/* ---------- localStorage 헬퍼 (저장소 차단 환경에서도 앱이 죽지 않게 메모리 대체) ---------- */
+const __memStore={};
+function lsGet(k, def){
+  try{ const v=localStorage.getItem(k); if(v!=null) return JSON.parse(v) ?? def; }catch(e){}
+  try{ return __memStore[k]!==undefined ? JSON.parse(__memStore[k]) : def; }catch(e){ return def; }
+}
+function lsSet(k, v){
+  const s=JSON.stringify(v);
+  try{ localStorage.setItem(k, s); }catch(e){ __memStore[k]=s; }
+}
+window.onerror=function(msg, src, line){
+  try{ document.getElementById("sheetStatus").textContent="오류: "+msg+" ("+line+"줄)"; }catch(e){}
+};
+function loadAdded(){ return lsGet("hg_added", []); }
+function loadEdits(){ return lsGet("hg_edits", {}); }
+function loadChecks(){ return lsGet("hg_checks", {}); }
+function saveAdded(){ lsSet("hg_added", addedSites); }
+function saveEdits(){ lsSet("hg_edits", edits); }
+function saveChecks(){ lsSet("hg_checks", checks); }
+function saveNotes(){ lsSet("hg_notes", notes); }
+function savePending(){ lsSet("hg_pending", pendingQueue); }
+
+/* ---------- 유틸 ---------- */
+function normNo(s){ return (s||"").replace(/[-\s]/g,""); }        // 하이픈·공백 제거
+function normText(s){ return (s||"").toLowerCase().replace(/[-\s()]/g,""); }
+function normHead(s){ return (s||"").replace(/\s/g,""); }         // 헤더 비교용 (공백 제거)
+function curYM(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
+function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function digits(s){ return (s||"").replace(/\D/g,""); }
+
+/* ---------- 설정 ---------- */
+function applySettings(){
+  document.documentElement.style.setProperty("--base-font", settings.fs);
+  document.documentElement.setAttribute("data-theme", settings.theme||"light");
+  document.documentElement.setAttribute("data-wide", settings.wide?"on":"off");
+  document.querySelectorAll(".fontsize-group button").forEach(b=>b.classList.toggle("active", b.dataset.fs===settings.fs));
+  document.querySelectorAll(".theme-row button").forEach(b=>b.classList.toggle("active", b.dataset.th===(settings.theme||"light")));
+}
+function saveSettings(){ lsSet("hg_settings",settings); applySettings(); }
+
+/* ---------- 정보센터 API 데이터 (매일 아침 서버가 갱신) ---------- */
+function isRegistered(s){
+  const r=regs[digits(s.elevNo)];
+  if(r && r.ym===curYM()) return true;
+  // 등록현황에서 자동 체크된 기록("…·등록")은 그 자체가 등록 완료의 증거 -
+  // 데이터 새로고침이 늦어도 등록지연 표시가 잘못 뜨지 않게 함
+  const c=checks[s.ckey];
+  return !!(c && c.done && c.month===curYM() && /·등록$/.test(c.user||""));
+}
+function delayDays(s){
+  // 점검 체크는 했는데 정보센터 등록이 안 된 지 며칠째인지
+  if(isRegistered(s)) return 0;
+  const c=checks[s.ckey];
+  if(!(c && c.done && c.month===curYM() && c.date)) return 0;
+  return Math.floor((Date.now()-new Date(c.date+"T00:00:00").getTime())/86400000);
+}
+function dueThisMonth(s){
+  // 선택한 달(기본: 이번 달)의 검사대상인지 - API 유효기간 우선, 없으면 시트의 검사(월) 칸
+  const sel=filterState.selMonth;
+  const iv=insp[digits(s.elevNo)];
+  if(iv && iv.end && /^\d{4}-\d{2}/.test(iv.end)) return +iv.end.slice(5,7)===sel;
+  return (s.month||"").replace(/\s/g,"")===sel+"월";
+}
+/* 정보센터에 등록 완료된 현장은 점검 체크도 자동 완료 처리 */
+function applyRegsToChecks(){
+  for(const s of SITES){
+    const r=regs[digits(s.elevNo)];
+    if(!(r && r.ym===curYM())) continue;
+    const c=checks[s.ckey];
+    if(!c || !c.done){
+      checks[s.ckey]={done:true, date:r.chkDate||"", month:curYM(), user:(r.user||"")+"·등록"};
+    }
+  }
+  saveChecks();
+}
+function toast(msg){
+  const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),1800);
+}
+
+/* ---------- CSV 파서 (따옴표·줄바꿈 대응) ---------- */
+function parseCSV(text){
+  const rows=[]; let row=[], field="", inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){field+='"';i++;} else inQ=false; }
+      else field+=c;
+    }else{
+      if(c==='"') inQ=true;
+      else if(c===",") { row.push(field); field=""; }
+      else if(c==="\n"){ row.push(field); rows.push(row); row=[]; field=""; }
+      else if(c==="\r"){}
+      else field+=c;
+    }
+  }
+  if(field.length||row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+
+/* =========================================================================
+   시트 로드: 탭 자동 검색 → 전 탭 병렬 로드 → 헤더 자동 감지 → 병합
+   (탭마다 헤더 위치·컬럼 순서가 조금씩 달라서 헤더 이름으로 컬럼을 찾음)
+   ========================================================================= */
+
+/* 헤더 이름 → 필드 매핑 규칙 (공백 제거 후 검사, 위에서부터 먼저 맞는 것 적용) */
+const COL_KEYS = [
+  ["name",      /건물명|현장명/],
+  ["addr",      /주소/],
+  ["check",     /체크/],
+  ["access",    /출입/],
+  ["type",      /기종/],
+  ["elevNo",    /승강기번호/],
+  ["month",     /^검사/],
+  ["contract",  /^계약/],
+  ["memo",      /^비고/],
+  ["owner",     /연락처/],
+  ["manager",   /^담당/],
+  ["emergency", /비상/],
+];
+
+function findHeaderRow(rows){
+  for(let i=0;i<Math.min(rows.length,12);i++){
+    if((rows[i]||[]).some(c=>normHead(c).includes("승강기번호"))) return i;
+  }
+  return -1;
+}
+function mapColumns(headerRow){
+  const map={};
+  headerRow.forEach((cell,idx)=>{
+    const h=normHead(cell); if(!h) return;
+    for(const [key,re] of COL_KEYS){
+      if(map[key]===undefined && re.test(h)){ map[key]=idx; break; }
+    }
+  });
+  return map;
+}
+
+/* 탭 하나 → 현장 배열 */
+function parseTab(tab){
+  const hi=findHeaderRow(tab.rows);
+  if(hi<0) return [];
+  const cols=mapColumns(tab.rows[hi]);
+  const isPersonTab = PERSON_TABS.has(tab.name.trim()); // "최병관" 같은 담당자 이름 탭
+  const isRegionTab = /현장/.test(tab.name) && !/전체/.test(tab.name); // "오산현장" 같은 지역 탭
+  const out=[];
+  const bOcc={}; // 번호 없는 현장의 건물별 순서 (같은 건물에 여러 대 있어도 각각 유지)
+  for(let i=hi+1;i<tab.rows.length;i++){
+    const r=tab.rows[i]||[];
+    const get=k=> cols[k]===undefined ? "" : (r[cols[k]]||"").trim();
+    const name=get("name");
+    let elevNo=get("elevNo"), month=get("month");
+    // 번호가 옆 칸(검사)에 밀려 들어간 행 구제 (예: 검사칸에 "2259799")
+    if(!/\d/.test(elevNo) && /^\d{6,8}$/.test(month.replace(/\s/g,""))){
+      elevNo=month.replace(/\s/g,""); month="";
+    }
+    if(!elevNo && !(name && get("addr"))) continue;             // 빈 줄·안내문 행 (번호도 주소도 없음)
+    if(/건물명|현장명/.test(normHead(name)) || normHead(elevNo)==="승강기번호") continue; // 중간 반복 헤더
+    const manager=get("manager");
+    const s={
+      name, addr:get("addr"), check:get("check"), access:get("access"),
+      type:get("type"), elevNo, month:month, contract:get("contract"),
+      memo:get("memo"), owner:get("owner"), emergency:get("emergency"),
+      // 담당 칸 값이 시트 하단 탭에 있는 사람일 때만 담당자로 인정
+      // (이종구님·김현덕·전화번호·임대인 같은 잘못된 값 걸러냄)
+      assignee: PERSON_TABS.has(manager) ? manager : "",
+      team: manager.endsWith("팀") ? manager : "",
+      source:"sheet"
+    };
+    // 담당자 탭에 실려 있는 승강기는 그 사람 담당이 확실 - 전체 현장의 옛 담당(퇴사자 등)보다 우선
+    if(isPersonTab){ s.assignee=tab.name.trim(); s._assigneeOv=true; }
+    if(isRegionTab){ s.team=tab.name.trim(); s._teamOv=true; } // 지역 탭 현장은 "동탄팀" 대신 지역명으로 구분
+    // 점검기록용 아이디(ckey): 진짜 번호가 있으면 번호, 없으면(빈칸·X·없음·- 등) 건물명#순서
+    if(/\d/.test(elevNo)){
+      s._occ=0; s.ckey=elevNo;
+    }else{
+      const bk=normText(name)+"|"+normText(s.addr);
+      bOcc[bk]=(bOcc[bk]||0)+1;
+      s._occ=bOcc[bk];
+      s.ckey=name+"#"+s._occ;
+    }
+    out.push(s);
+  }
+  return out;
+}
+
+/* 여러 탭 병합: 승강기번호(없으면 건물명+주소) 기준으로 중복 제거.
+   "전체 현장" 탭을 기준으로 삼고, 담당자/지역 탭에만 있는 값(연락처 등)으로 빈 칸을 채움. */
+const MERGE_FIELDS=["name","addr","check","access","type","month","contract","memo","owner","emergency","assignee","team"];
+function siteMergeKey(s){
+  // 진짜 번호(숫자 포함)만 번호로 병합. "X"·"없음"·"-"·빈칸은 건물명+주소+순서로 각각 유지
+  if(/\d/.test(s.elevNo||"")) return "N:"+normNo(s.elevNo);
+  return "B:"+normText(s.name)+"|"+normText(s.addr)+"|"+(s._occ||0);
+}
+/* 해지된 현장인지 (단, "통신해지"는 비상통화 회선 얘기라 계약해지가 아님) */
+function isTerminated(s){
+  return ["name","check","memo","contract"].some(f=>{
+    const v=(s[f]||"").replace(/통신\s*해지/g,"");
+    return v.includes("해지");
+  });
+}
+function mergeTabs(tabDatas){
+  tabDatas.sort((a,b)=>(/전체/.test(b.name)?1:0)-(/전체/.test(a.name)?1:0)); // 전체 탭 먼저
+  const map=new Map();
+  for(const tab of tabDatas){
+    for(const s of parseTab(tab)){
+      const k=siteMergeKey(s);
+      const ex=map.get(k);
+      if(!ex){ map.set(k,s); continue; }
+      for(const f of MERGE_FIELDS){ if(!ex[f] && s[f]) ex[f]=s[f]; }
+      if(s._teamOv) ex.team=s.team; // 지역 탭의 지역명이 "동탄팀"보다 우선
+      if(s._assigneeOv) ex.assignee=s.assignee; // 담당자 탭 소속이 전체 현장 담당 칸보다 우선
+    }
+  }
+  return [...map.values()].filter(s=>!isTerminated(s)); // 해지 표시된 현장 제외
+}
+
+/* 시트의 탭 목록 자동 검색 (탭이 추가/삭제되어도 자동 반영) */
+async function discoverTabs(){
+  try{
+    const txt=await fetchText("https://docs.google.com/spreadsheets/d/"+SHEET_ID+"/htmlview");
+    const tabs=[]; const re=/items\.push\(\{name:\s*"([^"]+)"[\s\S]*?gid:\s*"(\d+)"/g; let m;
+    while((m=re.exec(txt))) tabs.push({name:m[1], gid:m[2]});
+    if(tabs.length) return tabs;
+  }catch(e){ console.warn("탭 목록 자동조회 실패 → 기본 목록 사용", e); }
+  return FALLBACK_TABS;
+}
+
+async function fetchTabCSV(tab){
+  const raw="https://docs.google.com/spreadsheets/d/"+SHEET_ID+"/export?format=csv&gid="+tab.gid;
+  return { name:tab.name, rows:parseCSV(await fetchText(raw)) };
+}
+
+async function loadSheets(){
+  const st=document.getElementById("sheetStatus");
+  try{
+    if(APPS_SCRIPT_URL){
+      /* 공유 모드: Apps Script 가 전 탭 데이터 + 공유 점검기록을 한 번에 반환 */
+      st.textContent="서버에서 데이터 불러오는 중...";
+      const res=await fetch(`${APPS_SCRIPT_URL}?action=data&token=${encodeURIComponent(APP_TOKEN)}`);
+      const j=await res.json();
+      if(j.error) throw new Error(j.error);
+      const tabs=(j.tabs||[]).filter(t=>!EXCLUDE_TAB.test(t.name));
+      PERSON_TABS=new Set(tabs.map(t=>t.name.trim()).filter(n=>!/현장|전체/.test(n)));
+      SITES=mergeTabs(tabs);
+      applyServerChecks(j.checks||{});
+      applyServerNotes(j.notes||{});
+      regs=j.regs||{}; insp=j.insp||{}; ins=j.ins||{}; insp2=j.insp2||{};
+      try{ lsSet("hg_regs",regs); lsSet("hg_insp",insp); lsSet("hg_ins",ins); lsSet("hg_insp2",insp2); }catch(e){}
+      applyRegsToChecks();
+      st.textContent=`승강기 ${SITES.length+addedSites.length}대 · 공유 중`;
+    }else{
+      /* CSV 모드: 모든 탭을 자동 검색해서 병렬 로드 */
+      st.textContent="시트 탭 목록 확인 중...";
+      const tabs=(await discoverTabs()).filter(t=>!EXCLUDE_TAB.test(t.name));
+      st.textContent=`탭 ${tabs.length}개 불러오는 중...`;
+      const results=await Promise.allSettled(tabs.map(fetchTabCSV));
+      const ok=results.filter(r=>r.status==="fulfilled").map(r=>r.value);
+      const fail=results.length-ok.length;
+      if(!ok.length) throw new Error("모든 탭 로드 실패");
+      PERSON_TABS=new Set(tabs.map(t=>t.name.trim()).filter(n=>!/현장|전체/.test(n)));
+      SITES=mergeTabs(ok);
+      st.textContent=`현장 ${SITES.length+addedSites.length}건 로드됨 (탭 ${ok.length}/${tabs.length}${fail?` · 실패 ${fail}`:""})`;
+    }
+    try{ if(SITES.length) lsSet("hg_cacheSites", SITES); }catch(e){} // 다음에 바로 열리도록 저장
+  }catch(e){
+    console.error(e);
+    st.textContent = SITES.length
+      ? `저장된 목록 ${SITES.length+addedSites.length}건 표시 중 (새 데이터 불러오기 실패 — 오프라인?)`
+      : "데이터 로드 실패 — 인터넷 연결을 확인하고 새로고침하세요";
+  }
+  buildAssigneeFilter();
+  render();
+}
+
+/* =========================================================================
+   공유 모드: 점검 기록을 시트에 기록해서 전 직원이 공유
+   ========================================================================= */
+function getUserName(){
+  if(filterState.assignee) return filterState.assignee; // 담당자 필터를 선택했으면 그 이름 자동 사용
+  let n=lsGet("hg_username","");
+  if(!n){
+    n=(prompt("이름을 입력하세요 (점검 기록에 표시됩니다)")||"").trim();
+    if(n) lsSet("hg_username",n);
+  }
+  return n;
+}
+
+/* 서버 점검기록을 로컬에 반영 (아직 전송 못 한 내 기록은 유지) */
+function applyServerChecks(server){
+  const pendNos=new Set(pendingQueue.filter(p=>p.type!=="note").map(p=>p.elevNo));
+  for(const no in server){ if(!pendNos.has(no)) checks[no]=server[no]; }
+  saveChecks();
+}
+/* 서버 특이사항을 로컬에 반영 (다른 직원이 지운 것도 반영) */
+function applyServerNotes(server){
+  const pend=new Set(pendingQueue.filter(p=>p.type==="note").map(p=>p.elevNo));
+  for(const no in notes){ if(!pend.has(no) && !(no in server)) delete notes[no]; }
+  for(const no in server){ if(!pend.has(no)) notes[no]=server[no]; }
+  saveNotes();
+}
+
+/* 점검 변경을 서버 전송 대기열에 추가 (오프라인이면 연결될 때 자동 전송) */
+function queueCheckSync(no, removed){
+  if(!APPS_SCRIPT_URL) return;
+  const c=checks[no]||{};
+  pendingQueue.push({
+    token:APP_TOKEN, type:"check", elevNo:no,
+    done: removed?false:!!c.done,
+    date:c.date||"", month:c.month||curYM(),
+    user:getUserName(), removed:!!removed
+  });
+  savePending();
+  flushPending();
+}
+/* 특이사항 저장/삭제를 서버 전송 대기열에 추가 */
+function queueNoteSync(no, text){
+  if(!APPS_SCRIPT_URL) return;
+  pendingQueue.push({ token:APP_TOKEN, type:"note", elevNo:no, text:text, user:getUserName() });
+  savePending();
+  flushPending();
+}
+let _flushing=false;
+async function flushPending(){
+  if(_flushing||!APPS_SCRIPT_URL||!pendingQueue.length) return;
+  _flushing=true;
+  try{
+    while(pendingQueue.length){
+      const p=pendingQueue[0];
+      const res=await fetch(APPS_SCRIPT_URL,{
+        method:"POST",
+        headers:{"Content-Type":"text/plain;charset=utf-8"}, // preflight 회피용
+        body:JSON.stringify(p)
+      });
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      pendingQueue.shift(); savePending();
+    }
+  }catch(e){
+    console.warn("점검기록 동기화 대기:",e);
+    toast("오프라인 — 연결되면 자동 동기화됩니다");
+  }
+  _flushing=false;
+}
+
+/* ---------- 현장 병합(원본 + 추가 + 수정 적용) ---------- */
+function siteKey(s){ return s.source==="added" ? "A:"+s.id : "S:"+s.elevNo+":"+s.name; }
+function getAllSites(){
+  const all=[...SITES, ...addedSites];
+  return all.map(s=>{
+    const k=siteKey(s);
+    const o = edits[k] ? {...s, ...edits[k], _key:k} : {...s, _key:k};
+    if(!o.ckey) o.ckey = /\d/.test(o.elevNo||"") ? o.elevNo : "A:"+(o.id||o.name||"");
+    return o;
+  });
+}
+
+/* ---------- 담당자/팀 필터 옵션 ---------- */
+function buildAssigneeFilter(){
+  const all=getAllSites();
+  const asg=[...new Set(all.map(s=>s.assignee).filter(Boolean))].sort();
+  const teams=[...new Set(all.map(s=>s.team).filter(Boolean))].sort();
+  const af=document.getElementById("assigneeFilter");
+  af.innerHTML='<option value="">담당자 전체</option>'+asg.map(a=>`<option>${a}</option>`).join("");
+  const tf=document.getElementById("teamFilter");
+  tf.innerHTML='<option value="">팀 전체</option>'+teams.map(t=>`<option>${t}</option>`).join("");
+}
+
+/* ---------- 같은 주소 묶기 ---------- */
+function groupByBuilding(sites){
+  const map=new Map();
+  for(const s of sites){
+    const key=(s.name||"")+"|"+(s.addr||"");
+    if(!map.has(key)) map.set(key,{name:s.name,addr:s.addr,assignee:s.assignee,team:s.team,memo:s.memo,elevs:[]});
+    map.get(key).elevs.push(s);
+  }
+  return [...map.values()];
+}
+
+/* ---------- 필터 적용 ---------- */
+function applyFilters(sites){
+  let out=sites;
+  if(filterState.assignee) out=out.filter(s=>s.assignee===filterState.assignee);
+  if(filterState.team) out=out.filter(s=>s.team===filterState.team);
+  if(filterState.search){
+    const q=normText(filterState.search);
+    const qNo=normNo(filterState.search);
+    out=out.filter(s=>
+      normText(s.name).includes(q) ||
+      normText(s.addr).includes(q) ||
+      (qNo && normNo(s.elevNo).includes(qNo)) ||
+      (qNo && normNo(s.emergency||"").includes(qNo))
+    );
+  }
+  const p=quickPred(filterState.quick);
+  if(p) out=out.filter(p);
+  return out;
+}
+
+/* 빠른 필터 조건 (목록·건수 표시 공용) */
+function quickPred(q){
+  const today=new Date().toISOString().slice(0,10);
+  switch(q){
+    case "thismonth": return dueThisMonth;
+    case "undone": return s=>!isDone(s.ckey);
+    case "done": return s=>isDone(s.ckey);
+    case "registered": return isRegistered;
+    case "regdelay": return s=>delayDays(s)>=3;
+    case "noins": return s=>{ const iv=insp[digits(s.elevNo)]; return iv&&iv.end&&iv.end<today; };
+    case "noinsurance": return s=>{ const d=digits(s.elevNo); return /\d/.test(s.elevNo||"") && !ins[d]; };
+    case "conditional": return s=>{ const v=insp2[digits(s.elevNo)]; return v && (v.result||"").includes("조건부"); };
+    default: return null;
+  }
+}
+
+/* ---------- 점검 상태 ---------- */
+function isDone(elevNo){ const c=checks[elevNo]; return !!(c && c.done && c.month===curYM()); }
+function getCheck(elevNo){ return checks[elevNo] || {done:false,date:"",month:""}; }
+
+/* ---------- 렌더 ---------- */
+function render(){
+  const all=getAllSites();
+  const filtered=applyFilters(all);
+  const listEl=document.getElementById("list");
+
+  // 진행률 (현재 필터의 담당자 기준)
+  renderStats(all);
+
+  renderWarnBanner(all);
+
+  if(filterState.quick==="conditional" && !Object.keys(insp2).length){
+    listEl.innerHTML=`<div class="empty">검사판정 데이터가 아직 수집 전입니다.<br>매주 일요일 새벽 3시에 자동 수집됩니다.</div>`;
+    return;
+  }
+  if(filterState.quick==="noinsurance" && !Object.keys(ins).length){
+    listEl.innerHTML=`<div class="empty">보험 정보가 아직 수집 전입니다.<br>매일 새벽 4시에 자동 수집됩니다.</div>`;
+    return;
+  }
+  if((filterState.quick==="registered"||filterState.quick==="regdelay"||filterState.quick==="noins") && !Object.keys(regs).length && !Object.keys(insp).length){
+    listEl.innerHTML=`<div class="empty">아직 정보센터 API 데이터가 없습니다.<br>매일 아침 6시에 자동 갱신됩니다. (서버에서 dailyApiUpdate 첫 실행 필요)</div>`;
+    return;
+  }
+
+  // 검색 중이면 조회된 대수를 목록 맨 위에 표시
+  const countHtml = filterState.search
+    ? `<div class="search-count">🔍 "${esc(filterState.search)}" 검색 결과 <b>${filtered.length}대</b></div>` : "";
+
+  if(filtered.length===0){
+    listEl.innerHTML=countHtml+`<div class="empty">표시할 현장이 없습니다.</div>`;
+    return;
+  }
+
+  const groups=sortGroups(groupByBuilding(filtered));
+  if(viewMode==="list"){
+    listEl.innerHTML=countHtml+groups.flatMap(g=>g.elevs).map(renderListRow).join("");
+  }else{
+    listEl.innerHTML=countHtml+groups.map(renderGroup).join("");
+  }
+  bindCardEvents();
+}
+
+/* ---------- 리스트 보기 (한 줄 요약) ---------- */
+function renderListRow(s){
+  const done=isDone(s.ckey);
+  const c=getCheck(s.ckey);
+  const note=notes[s.ckey]&&notes[s.ckey].text;
+  const reg=isRegistered(s);
+  return `
+    <div class="list-row ${done?'done':''}">
+      <div class="lr-main">
+        <div class="lr-name" data-act="qr" data-no="${s.elevNo}">${esc(s.name)||"(이름없음)"} ${s.month?`<span class="m-badge">${s.month}</span>`:""} ${reg?`<span class="reg-badge">등록✔</span>`:""}${(()=>{const v2=insp2[digits(s.elevNo)];return v2&&/조건부|불합격/.test(v2.result||"")?` <span class="delay-badge">${esc(v2.result)}</span>`:"";})()}${done?` <span class="done-info">✔${c.user?(" "+c.user):""}</span>`:""}</div>
+        <div class="lr-sub">${esc(s.addr)||"-"} · ${s.elevNo||"번호없음"}${s.access?(" · "+esc(s.access)):""}</div>
+        ${note?`<div class="lr-note">📝 ${esc(note)}</div>`:""}
+      </div>
+      <input type="checkbox" data-act="check" data-no="${esc(s.ckey)}" ${done?"checked":""}>
+      <button class="btn sm secondary" data-act="detail" data-key="${s._key}">정보</button>
+    </div>`;
+}
+
+/* ---------- 정렬 ---------- */
+function sortGroups(groups){
+  const so=filterState.sort||"sheet";
+  const mNum=v=>{ const m=(v||"").match(/(\d+)\s*월/); return m?+m[1]:99; };
+  if(so==="name"){
+    groups.sort((a,b)=>(a.name||"").localeCompare(b.name||"","ko"));
+  }else if(so==="month"){
+    groups.sort((a,b)=>Math.min(...a.elevs.map(e=>mNum(e.month)))-Math.min(...b.elevs.map(e=>mNum(e.month))));
+  }else if(so==="undone"){
+    groups.sort((a,b)=>(a.elevs.every(e=>isDone(e.ckey))?1:0)-(b.elevs.every(e=>isDone(e.ckey))?1:0));
+  }
+  return groups; // "sheet"는 시트 순서 그대로
+}
+
+function renderStats(all){
+  const scope = filterState.assignee ? all.filter(s=>s.assignee===filterState.assignee)
+              : filterState.team ? all.filter(s=>s.team===filterState.team) : all;
+  const total=scope.length;
+  const done=scope.filter(s=>isDone(s.ckey)).length;
+  const pct= total? Math.round(done/total*100):0;
+
+  // 통계 숫자는 게이지와 아래 필터 목록(항목마다 대수 표시)에 이미 다 나오므로 박스는 두지 않음
+  document.getElementById("progressFill").style.width=pct+"%";
+  document.getElementById("progressText").textContent=`점검 ${done}/${total}대 · ${pct}%`;
+  updateQuickOptions(scope);
+}
+
+/* 빠른 필터 드롭다운: 항목마다 해당 대수 표시 */
+function updateQuickOptions(scope){
+  const opts=[
+    ["all","전체"],
+    ["thismonth",filterState.selMonth+"월 검사대상"],
+    ["undone","미점검"],
+    ["done","점검완료"],
+    ["registered","점검등록 완료"],
+    ["regdelay","등록 지연"],
+    ["noins","검사기간 만료"],
+    ["noinsurance","보험 미가입"],
+    ["conditional","조건부 미처리"]
+  ];
+  const sel=document.getElementById("quickFilter");
+  sel.innerHTML=opts.map(([v,l])=>{
+    const p=quickPred(v);
+    const n=p? scope.filter(p).length : scope.length;
+    return `<option value="${v}">${l} (${n}대)</option>`;
+  }).join("");
+  sel.value=filterState.quick;
+  // 검사대상을 보고 있을 때만 옆에 월 바꾸기 버튼 표시
+  const mb=document.getElementById("monthBtn");
+  mb.style.display = filterState.quick==="thismonth" ? "block" : "none";
+  mb.textContent = filterState.selMonth+"월 ▾";
+}
+
+/* 검사대상 월 선택 (검사 미리 준비용) */
+function openMonthModal(){
+  const now=new Date().getMonth()+1;
+  document.getElementById("monthGrid").innerHTML=[...Array(12)].map((_,i)=>{
+    const mo=i+1;
+    return `<button class="btn ${mo===now?'now':''} ${mo===filterState.selMonth?'':'secondary'}" data-m="${mo}">${mo}월</button>`;
+  }).join("");
+  document.querySelectorAll("#monthGrid .btn").forEach(b=>{
+    b.onclick=()=>{
+      filterState.selMonth=+b.dataset.m;
+      filterState.quick="thismonth";
+      closeModal("monthModal");
+      render();
+    };
+  });
+  openModalById("monthModal");
+}
+
+/* ---------- 등록지연 경고 배너 ---------- */
+function renderWarnBanner(all){
+  const el=document.getElementById("warnBanner");
+  if(!settings.warn){ el.classList.remove("show"); return; }
+  const late=all.filter(s=>delayDays(s)>=3);
+  if(!late.length){ el.classList.remove("show"); return; }
+  el.classList.add("show");
+  document.getElementById("warnTitle").textContent=`⚠ 점검등록 지연 ${late.length}건 — 누르면 목록 보기`;
+  document.getElementById("warnList").innerHTML=late.slice(0,50).map(s=>
+    `<li>${esc(s.name)} (${s.elevNo||"-"}) · 점검 ${checks[s.ckey].date} · <b>${delayDays(s)}일째 미등록</b></li>`).join("");
+}
+
+function badgeMonth(m){ return m? `<span class="badge month">${m}</span>`:""; }
+function badgeFM(memo){ return /FM/.test(memo||"")? `<span class="badge fm">FM</span>`:""; }
+function badgeTeam(t){ return t? `<span class="badge team">${t}</span>`:""; }
+
+function renderGroup(g){
+  const elevRows=g.elevs.map(s=>{
+    const c=getCheck(s.ckey);
+    const done=isDone(s.ckey);
+    const note=notes[s.ckey]&&notes[s.ckey].text;
+    const reg=isRegistered(s);
+    const dl=delayDays(s);
+    const v2=insp2[digits(s.elevNo)];
+    const bad=v2&&/조건부|불합격/.test(v2.result||"");
+    return `
+      <div class="elev-row ${done?'done':''}">
+        <span class="elev-no" data-act="qr" data-no="${s.elevNo}">${s.elevNo||"(번호없음)"}</span>
+        ${s.month?`<span class="m-badge">${s.month}</span>`:""}
+        ${reg?`<span class="reg-badge">등록✔</span>`:""}
+        ${bad?`<span class="delay-badge" data-act="detail" data-key="${s._key}" style="cursor:pointer">${esc(v2.result)}</span>`:""}
+        ${(!reg&&dl>=3&&settings.warn)?`<span class="delay-badge">등록지연 ${dl}일</span>`:""}
+        ${done?`<span class="done-info">✔ ${c.date||""}</span>`:""}
+        <span class="elev-check">
+          <input type="checkbox" data-act="check" data-no="${esc(s.ckey)}" ${done?"checked":""}>
+          <button class="btn sm secondary" data-act="detail" data-key="${s._key}">상세</button>
+        </span>
+        ${note?`<div class="elev-note">📝 ${esc(note)}</div>`:""}
+      </div>`;
+  }).join("");
+
+  const allDone=g.elevs.every(s=>isDone(s.ckey));
+  const firstNo=g.elevs.map(s=>s.elevNo).find(no=>/\d/.test(no||""))||"";
+  // 화면을 간결하게: 이미 걸러서 보고 있는 정보(담당자·팀)와 뻔한 정보(승강기 1대)는 숨김
+  const sub=[];
+  if(!filterState.assignee && g.assignee) sub.push(g.assignee);
+  if(g.elevs.length>1) sub.push("승강기 "+g.elevs.length+"대");
+  return `
+    <div class="site-card ${allDone?'done':''}">
+      <div class="site-head">
+        <div>
+          <div class="site-name" data-act="qr" data-no="${firstNo}">${g.name||"(이름없음)"} ${badgeFM(g.memo)}${filterState.team?"":badgeTeam(g.team)}</div>
+          <div class="site-addr" data-act="map" data-addr="${encodeURIComponent(g.addr)}">${g.addr||""}</div>
+          ${sub.length?`<div class="check-note">${sub.join(" · ")}</div>`:""}
+        </div>
+      </div>
+      <div class="elev-list">${elevRows}</div>
+    </div>`;
+}
+
+/* ---------- 카드 이벤트 ---------- */
+function bindCardEvents(){
+  document.querySelectorAll('[data-act]').forEach(el=>{
+    const act=el.getAttribute("data-act");
+    if(act==="check") el.onclick=e=>{ e.preventDefault(); openCheckModal(el.dataset.no, !isDone(el.dataset.no)); };
+    else if(act==="qr") el.onclick=()=>openQR(el.dataset.no);
+    else if(act==="map") el.onclick=()=>openMap(decodeURIComponent(el.dataset.addr));
+    else if(act==="edit") el.onclick=()=>openSiteModal(el.dataset.key);
+    else if(act==="band") el.onclick=()=>toast("밴드 연동은 준비 중입니다"); // 보류: 나중에 openBandSearch(el.dataset.name) 로 복원
+    else if(act==="detail") el.onclick=()=>openDetail(el.dataset.key);
+  });
+}
+
+/* ---------- 점검 완료 체크창 ---------- */
+let checkingNo=null;
+function openCheckModal(no, presetDone){
+  if(!no){ toast("승강기번호가 없습니다"); return; }
+  checkingNo=no;
+  const s=getAllSites().find(x=>x.ckey===no);
+  document.getElementById("checkTitle").textContent=(s&&s.name)||"점검 체크";
+  document.getElementById("ck_no").textContent=(s&&/\d/.test(s.elevNo||""))?s.elevNo:no;
+  const c=getCheck(no);
+  document.getElementById("ck_done").checked = presetDone!==undefined ? presetDone : isDone(no);
+  document.getElementById("ck_date").value = c.date || new Date().toISOString().slice(0,10);
+  document.getElementById("ck_note").value = (notes[no]&&notes[no].text)||"";
+  openModalById("checkModal");
+}
+function saveCheckModal(){
+  const no=checkingNo; if(!no) return;
+  const done=document.getElementById("ck_done").checked;
+  const date=document.getElementById("ck_date").value;
+  const c=checks[no]||{};
+  c.done=done; c.date=date; c.month=curYM();
+  c.user=getUserName();
+  checks[no]=c; saveChecks();
+  queueCheckSync(no, false);
+  // 특이사항: 내용이 바뀐 경우만 저장/삭제 (지우기 전까지 유지)
+  const text=document.getElementById("ck_note").value.trim();
+  const old=(notes[no]&&notes[no].text)||"";
+  if(text!==old){
+    if(text) notes[no]={text:text, user:getUserName()};
+    else delete notes[no];
+    saveNotes();
+    queueNoteSync(no, text);
+  }
+  closeModal("checkModal");
+  toast(done?"점검 완료 저장됨":"저장됨");
+  render();
+}
+
+/* ---------- 점검 기록 삭제 (본인 기록, 3단계 확인) ---------- */
+function deleteCheck(no){
+  if(!confirm("① 이 승강기의 점검 기록을 삭제할까요?")) return;
+  if(!confirm("② 삭제하면 완료 표시와 점검일이 사라집니다. 계속할까요?")) return;
+  if(!confirm("③ 마지막 확인입니다. 정말 삭제하시겠습니까?")) return;
+  delete checks[no]; saveChecks();
+  queueCheckSync(no, true);
+  toast("점검 기록 삭제됨"); render();
+}
+
+/* ---------- QR / 지도 ---------- */
+function openQR(no){
+  const n=normNo(no); // 하이픈 제거해야 바로 열림
+  if(!/^\d{5,8}$/.test(n)){ toast("승강기번호가 없는 현장입니다"); return; }
+  // 국가승강기정보센터 - QR 찍으면 나오는 승강기 정보 페이지로 바로 연결
+  window.open("https://m.elevator.go.kr/qrcode.do?no_plaq="+n,"_blank");
+}
+let mapAddrCur="";
+function openMap(addr){
+  if(!addr){ toast("주소가 없습니다"); return; }
+  mapAddrCur=addr;
+  document.getElementById("mapAddr").textContent=addr;
+  openModalById("mapModal");
+}
+function goMap(kind){
+  const q=encodeURIComponent(mapAddrCur);
+  const urls={
+    kakao:"https://map.kakao.com/?q="+q,
+    naver:"https://map.naver.com/v5/search/"+q,
+    google:"https://www.google.com/maps/search/?api=1&query="+q
+  };
+  window.open(urls[kind],"_blank");
+  closeModal("mapModal");
+}
+
+/* ---------- 현장 상세 모달 (승강기 기본정보 중심 - 현장 정보 수정과 역할 구분) ---------- */
+function openDetail(key){
+  const s=getAllSites().find(x=>x._key===key);
+  if(!s) return;
+  const c=getCheck(s.ckey);
+  const d=digits(s.elevNo);
+  const iv=insp[d], v2=insp2[d];
+  const bad=v2 && /조건부|불합격/.test(v2.result||"");
+  document.getElementById("detailTitle").textContent=(s.name||"현장 상세")+(s.elevNo?(" · "+s.elevNo):"");
+  document.getElementById("detailBody").innerHTML=`
+    ${bad?`<div class="cond-box">⚠ <b>${esc(v2.result)}</b> — ${v2.date||"-"} ${esc(v2.kind||"")}<br>
+      지적사항 세부내용은 국가승강기정보센터 페이지에서 확인할 수 있어요.<br>
+      <button class="btn sm danger" id="condQR" style="margin-top:6px;">정보센터에서 자세히 보기</button>
+      <div style="margin-top:6px;font-size:.88em;">확인한 조건부 내용은 점검 체크창의 <b>특이사항</b>에 적어두면 전 직원과 공유됩니다.</div>
+    </div>`:""}
+    <div class="field"><label>승강기 기본정보</label><div id="basicInfo">
+      기종: <b>${esc((iv&&iv.kind)||s.type||"-")}</b><br>
+      ${v2?`최종 검사: <b>${v2.date||"-"}</b> (${esc(v2.kind||"")}) → <b style="color:${bad?"var(--danger)":"var(--ok)"}">${esc(v2.result||"-")}</b><br>`:""}
+      ${iv?`검사유효기간: ${iv.begin||"?"} ~ <b>${iv.end||"?"}</b>${iv.status?(" · "+esc(iv.status)):""}<br>`:""}
+      <span id="liveInfo" style="color:var(--muted)">정보센터 실시간 조회 중... (인승·용량·설치일)</span>
+    </div></div>
+    <div class="field"><label>주소</label><div>${s.addr||"-"}</div></div>
+    <div class="field"><label>출입정보</label><div>${s.access||"-"}</div></div>
+    <div class="field"><label>비상통화장치</label><div>${s.emergency||"-"}</div></div>
+    <div class="field"><label>특이사항 (앱 기록)</label><div>${esc((notes[s.ckey]&&notes[s.ckey].text)||"")||"-"}</div></div>
+    <div class="field"><label>점검 상태</label>
+      <div>${isDone(s.ckey)?"✅ 완료 ("+(c.date||"")+(c.user?(" · "+c.user):"")+")":"⬜ 미점검"}</div></div>
+    <div class="modal-actions" style="margin-top:10px;">
+      <button class="btn sm secondary" id="detailEdit">현장 정보 수정</button>
+      <button class="btn sm ghost" id="detailBand">📗 밴드</button>
+      <button class="btn sm danger" id="detailDelCheck">점검 기록 삭제</button>
+    </div>
+  `;
+  document.getElementById("detailEdit").onclick=()=>{ closeModal("detailModal"); openSiteModal(s._key); };
+  document.getElementById("detailBand").onclick=()=>toast("밴드 연동은 준비 중입니다");
+  const cq=document.getElementById("condQR");
+  if(cq) cq.onclick=()=>openQR(s.elevNo);
+  fetchElevatorInfo(s.elevNo).then(info=>{
+    document.getElementById("apiInfoBox").innerHTML = info.html;
+  });
+  loadLiveSpec(s.elevNo);
+  document.getElementById("detailDelCheck").onclick=()=>{ deleteCheck(s.ckey); closeModal("detailModal"); };
+  openModalById("detailModal");
+}
+
+/* 정보센터 실시간 제원 (인승·용량·설치일 등 - 실패하면 저장된 정보로 안내) */
+async function loadLiveSpec(elevNo){
+  const el=()=>document.getElementById("liveInfo");
+  const no=digits(elevNo);
+  if(!no || !APPS_SCRIPT_URL){ if(el()) el().textContent=""; return; }
+  try{
+    const res=await fetch(`${APPS_SCRIPT_URL}?action=elev&no=${no}&token=${encodeURIComponent(APP_TOKEN)}`);
+    const j=await res.json();
+    if(!el()) return; // 모달이 이미 닫힘
+    if(!j || (!j.cap && !j.buld)){ el().textContent="실시간 조회가 지금은 안 됩니다 - 위 저장된 정보로 확인하세요"; return; }
+    el().style.color="";
+    el().innerHTML=[
+      j.cap?`인승: <b>${esc(j.cap)}</b>`:"",
+      j.load?`용량: <b>${esc(j.load)}</b>`:"",
+      j.speed?`속도: ${esc(j.speed)}`:"",
+      j.form?`형식: ${esc(j.form)}`:"",
+      j.floor?`운행층수: ${esc(String(j.floor))}층`:"",
+      j.install?`설치일: ${esc(j.install)}`:"",
+      j.maker?`제조사: ${esc(j.maker)}`:"",
+      j.lastDe?`최종검사일: <b>${esc(j.lastDe)}</b> (${esc(j.lastKind||"")}검사) → <b>${esc(j.lastRes||"")}</b>`:""
+    ].filter(Boolean).join("<br>");
+  }catch(e){
+    if(el()) el().textContent="실시간 조회가 지금은 안 됩니다 - 위 저장된 정보로 확인하세요";
+  }
+}
+
+/* ---------- 현장 추가/수정 모달 ---------- */
+let editingKey=null;
+function openSiteModal(key){
+  editingKey=key||null;
+  const title=document.getElementById("siteModalTitle");
+  const delRow=document.getElementById("siteDeleteRow");
+  // 건물명은 실수로 지워지면 안 되므로 수정 모드에서는 잠금 (추가할 때만 입력 가능)
+  const nameEl=document.getElementById("f_name");
+  nameEl.readOnly=!!key;
+  nameEl.style.background=key?"#e2e8f0":"";
+  nameEl.title=key?"건물명은 변경할 수 없습니다":"";
+  const note=document.getElementById("siteSecNote");
+  // 담당자·팀은 시트에 실제로 있는 이름만 고르게 함 (직접 입력 시 오타로 엉뚱한 담당이 생기던 문제)
+  const sitesAll=getAllSites();
+  const cur = key ? sitesAll.find(x=>x._key===key) : null;
+  fillPicker("f_assignee", sitesAll.map(x=>x.assignee), cur?cur.assignee:"", "담당자 선택");
+  fillPicker("f_team", sitesAll.map(x=>x.team), cur?cur.team:"", "팀·지역 없음");
+  if(key){
+    const all=sitesAll;
+    const s=cur;
+    // 이 현장에 승강기가 몇 대인지 알려줌 (현장 공통 정보는 그 전부에 적용됨)
+    const n=all.filter(x=>normText(x.name)===normText(s.name) && normText(x.addr)===normText(s.addr)).length;
+    note.textContent = n>1 ? `이 현장 ${n}대 모두에 함께 적용` : "이 현장 전체에 함께 적용";
+    title.textContent="현장 정보 수정";
+    setField("f_elevno",s.elevNo);setField("f_name",s.name);setField("f_addr",s.addr);
+    setField("f_type",s.type);setField("f_month",s.month);setField("f_assignee",s.assignee);
+    setField("f_team",s.team);setField("f_access",s.access);setField("f_check",s.check);
+    setField("f_memo",s.memo);setField("f_owner",s.owner);setField("f_emergency",s.emergency);
+    // 내가 추가한 현장만 삭제 버튼 노출
+    delRow.style.display = s.source==="added" ? "flex":"none";
+  }else{
+    note.textContent="이 현장 전체에 함께 적용";
+    title.textContent="현장 추가";
+    ["f_elevno","f_name","f_addr","f_type","f_month","f_assignee","f_team","f_access","f_check","f_memo","f_owner","f_emergency"].forEach(id=>setField(id,""));
+    delRow.style.display="none";
+  }
+  openModalById("siteModal");
+}
+/* 선택 목록 채우기 - 시트에 실제로 쓰이는 이름만 모아서 보여줌.
+   목록에 없는 기존 값(옛 담당자 등)이 있으면 그것도 남겨서 저장 시 지워지지 않게 함 */
+function fillPicker(id, values, cur, emptyLabel){
+  const el=document.getElementById(id);
+  const list=[...new Set(values.filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ko"));
+  if(cur && !list.includes(cur)) list.unshift(cur);
+  el.innerHTML=`<option value="">${esc(emptyLabel)}</option>`
+    + list.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+  el.value=cur||"";
+}
+function setField(id,v){ document.getElementById(id).value=v||""; }
+function getField(id){ return document.getElementById(id).value.trim(); }
+
+function saveSite(){
+  const data={
+    elevNo:getField("f_elevno"), name:getField("f_name"), addr:getField("f_addr"),
+    type:getField("f_type"), month:getField("f_month"), assignee:getField("f_assignee"),
+    team:getField("f_team"), access:getField("f_access"), check:getField("f_check"),
+    memo:getField("f_memo"), owner:getField("f_owner"), emergency:getField("f_emergency")
+  };
+  if(!data.name && !data.elevNo){ toast("건물명 또는 승강기번호를 입력하세요"); return; }
+  // 현장 공통 정보(주소·담당·출입·연락처·체크사항·비고)는 같은 현장 모든 호기에 적용,
+  // 호기 정보(번호·기종·검사월·비상통화)는 이 호기에만 적용
+  const SITE_F=["name","addr","assignee","team","access","owner","check","memo"];
+  if(editingKey){
+    edits[editingKey]={...(edits[editingKey]||{}), ...data};
+    const me=getAllSites().find(x=>x._key===editingKey);
+    if(me){
+      const common={}; SITE_F.forEach(f=>{ if(f!=="name") common[f]=data[f]; });
+      getAllSites().forEach(x=>{
+        if(x._key===editingKey) return;
+        if(normText(x.name)!==normText(me.name) || normText(x.addr)!==normText(me.addr)) return;
+        edits[x._key]={...(edits[x._key]||{}), ...common};
+      });
+    }
+    saveEdits();
+  }else{
+    data.id="a"+Date.now(); data.source="added";
+    addedSites.push(data); saveAdded();
+  }
+  // 시트(전체 현장 탭)에도 반영: 번호로 행을 찾아 수정, 없으면 새 행 추가
+  if(APPS_SCRIPT_URL){
+    pendingQueue.push({token:APP_TOKEN, type:"site",
+      elevNo:data.elevNo, name:data.name, addr:data.addr, kind:data.type, month:data.month,
+      assignee:data.assignee, access:data.access, check:data.check, memo:data.memo,
+      owner:data.owner, emergency:data.emergency});
+    savePending(); flushPending();
+    toast(editingKey?"수정됨 — 시트에도 반영됩니다":"추가됨 — 시트에도 반영됩니다");
+  }else{
+    toast(editingKey?"현장 정보 수정됨":"현장 추가됨");
+  }
+  closeModal("siteModal");
+  buildAssigneeFilter(); render();
+}
+
+function deleteAddedSite(){
+  if(!editingKey) return;
+  const s=getAllSites().find(x=>x._key===editingKey);
+  if(!s||s.source!=="added"){ toast("추가한 현장만 삭제할 수 있습니다"); return; }
+  if(!confirm("① 이 현장을 삭제할까요?")) return;
+  if(!confirm("② 삭제하면 복구할 수 없습니다. 계속할까요?")) return;
+  if(!confirm("③ 마지막 확인입니다. 정말 삭제하시겠습니까?")) return;
+  addedSites=addedSites.filter(x=>("A:"+x.id)!==editingKey);
+  delete edits[editingKey];
+  saveAdded(); saveEdits();
+  closeModal("siteModal"); toast("현장 삭제됨");
+  buildAssigneeFilter(); render();
+}
+
+/* =========================================================================
+   ⚙ API 연동 대기 함수 — 지금은 안내만 반환. 나중에 이 안쪽만 채우면 작동.
+   ========================================================================= */
+async function fetchElevatorInfo(elevNo){
+  // 정보센터 API 데이터 (서버가 매일 아침 6시 자동 갱신)
+  const d=digits(elevNo);
+  const iv=insp[d], rg=regs[d];
+  if(!iv && !rg){
+    return { ok:false, html:`아직 정보센터 API 데이터가 없습니다. (매일 아침 6시 자동 갱신)` };
+  }
+  let h="";
+  if(iv) h+=`정기검사 유효기간: <b>${iv.begin} ~ ${iv.end}</b>${iv.status?(" · "+iv.status):""}<br>`;
+  const v2=insp2[d];
+  if(v2) h+=`최근 검사판정: <b style="color:${(v2.result||"").includes("조건부")?"var(--danger)":"var(--ok)"}">${esc(v2.result)}</b> (${v2.date||"-"} ${esc(v2.kind||"")})<br>`;
+  if(rg) h+=`이번 달 자체점검: <b style="color:var(--ok)">정보센터 등록됨</b><br>(점검 ${rg.chkDate||"-"} · 등록 ${rg.regDt||"-"} · ${rg.user||""} ${rg.company||""} ${rg.result||""})<br>`;
+  else h+=`이번 달 자체점검: <b style="color:var(--danger)">정보센터 미등록</b><br>`;
+  const iv2=ins[d];
+  h+=iv2?`보험: ${esc(iv2.company)} (${iv2.st} ~ ${iv2.en})`:`보험: 가입정보 없음`;
+  return { ok:true, html:h };
+}
+async function autoFillFromElevNo(){
+  const no=digits(getField("f_elevno"));
+  if(!no){ toast("승강기번호를 먼저 입력하세요"); return; }
+  if(!APPS_SCRIPT_URL){ toast("서버 연결이 필요합니다"); return; }
+  toast("정보센터에서 조회 중...");
+  try{
+    const res=await fetch(`${APPS_SCRIPT_URL}?action=elev&no=${no}&token=${encodeURIComponent(APP_TOKEN)}`);
+    const j=await res.json();
+    if(!j.buld && !j.addr){ toast("정보센터에서 찾을 수 없는 번호입니다"); return; }
+    if(!getField("f_name")) setField("f_name", j.buld||"");
+    setField("f_addr", j.addr||"");
+    setField("f_type", ((j.kind||"")+" "+(j.model||"")).trim());
+    if(j.applcEn && /^\d{4}-\d{2}/.test(j.applcEn)) setField("f_month", (+j.applcEn.slice(5,7))+"월");
+    toast("자동 입력 완료 ("+(j.buld||j.addr)+")");
+  }catch(e){ toast("조회 실패 — 인터넷 연결 확인"); }
+}
+
+/* =========================================================================
+   Band 연동 자리 (placeholder)
+   ========================================================================= */
+/* 현장 카드의 밴드 버튼: 검색어 확인창 → 회사 밴드에서 검색
+   (건물명의 괄호 부분은 자동으로 떼서 넣어줌: "(대흥)소프트빌" → "소프트빌") */
+function openBandSearch(name){
+  const cleaned=(name||"").replace(/\([^)]*\)/g,"").replace(/\s+/g," ").trim() || name;
+  document.getElementById("band_q").value=cleaned;
+  openModalById("bandModal");
+  setTimeout(()=>document.getElementById("band_q").focus(), 100);
+}
+function goBandSearch(){
+  const q=document.getElementById("band_q").value.trim();
+  if(!q){ toast("검색어를 입력하세요"); return; }
+  const base=(settings.band||"https://www.band.us/band/77575553").replace(/\/+$/,"").replace(/\/board.*$/,"");
+  if(!/band\.us\/band\/\d+/.test(base)){
+    toast("설정(⚙)의 밴드 주소가 올바르지 않습니다");
+    return;
+  }
+  // 밴드 "앱"이 링크를 가로채면 검색 주소를 무시하고 홈으로 열림
+  // → 검색어를 복사해 둬서 밴드에서 🔍 누르고 붙여넣기만 하면 되게 함
+  if(navigator.clipboard) navigator.clipboard.writeText(q).catch(()=>{});
+  toast(`"${q}" 복사됨 — 밴드에서 🔍 누르고 붙여넣으세요`);
+  closeModal("bandModal");
+  setTimeout(()=>{ window.open(`${base}/board/search/${encodeURIComponent(q)}`,"_blank"); }, 600);
+}
+
+function openBand(){
+  // 오늘 점검 현황 요약을 만들어 Band 등에 공유
+  const all=getAllSites();
+  const total=all.length;
+  const done=all.filter(s=>isDone(s.ckey)).length;
+  const late=all.filter(s=>delayDays(s)>=3);
+  const today=new Date().toISOString().slice(0,10);
+  let text=`[한길승강기 점검현황] ${today}\n`;
+  text+=`점검 완료: ${done} / ${total}대 (${total?Math.round(done/total*100):0}%)\n`;
+  if(late.length){
+    text+=`⚠ 등록지연 ${late.length}건:\n`;
+    late.slice(0,10).forEach(s=>{ text+=` - ${s.name}(${s.elevNo}) ${delayDays(s)}일째\n`; });
+  }
+  if(navigator.share){
+    navigator.share({title:"점검현황", text:text}).catch(()=>{});
+  }else{
+    navigator.clipboard.writeText(text).then(()=>toast("현황이 복사됐어요 — Band에 붙여넣기 하세요"));
+  }
+}
+
+/* ---------- 월별 초기화 ---------- */
+function monthlyReset(auto){
+  const now=curYM();
+  // 이번 달이 아닌 점검 기록을 초기화
+  for(const no in checks){
+    if(checks[no].month!==now){ delete checks[no]; }
+  }
+  saveChecks();
+  lsSet("hg_lastResetYM", now);
+  if(!auto) toast("이번 달 점검이 초기화되었습니다");
+  render();
+}
+function checkMonthlyResetPrompt(){
+  const last=lsGet("hg_lastResetYM","");
+  const now=curYM();
+  if(last!==now){
+    // 새 달 첫 실행: 지난달 기록은 자동으로 정리 (공유 모드에서는 서버도 월 기준으로 관리됨)
+    monthlyReset(true);
+  }
+}
+
+/* ---------- 모달 공통 ---------- */
+function openModalById(id){ document.getElementById(id).classList.add("open"); }
+function closeModal(id){ document.getElementById(id).classList.remove("open"); }
+
+/* ---------- 이벤트 바인딩 ---------- */
+document.getElementById("assigneeFilter").onchange=e=>{ filterState.assignee=e.target.value; render(); };
+document.getElementById("teamFilter").onchange=e=>{ filterState.team=e.target.value; render(); };
+function updateViewBtn(){ document.getElementById("viewBtn").textContent = viewMode==="list" ? "☰ 리스트" : "🔳 카드"; }
+document.getElementById("viewBtn").onclick=()=>{
+  viewMode = viewMode==="list" ? "card" : "list";
+  lsSet("hg_view", viewMode);
+  updateViewBtn(); render();
+};
+const SORT_ORDER=["sheet","name","month","undone"];
+const SORT_LABEL={sheet:"↕ 기본순", name:"↕ ㄱㄴㄷ", month:"↕ 검사월", undone:"↕ 미점검"};
+function updateSortBtn(){ document.getElementById("sortBtn").textContent=SORT_LABEL[filterState.sort]||SORT_LABEL.sheet; }
+document.getElementById("sortBtn").onclick=()=>{
+  const i=SORT_ORDER.indexOf(filterState.sort);
+  filterState.sort=SORT_ORDER[(i+1)%SORT_ORDER.length];
+  lsSet("hg_sort",filterState.sort);
+  updateSortBtn(); render();
+  toast("정렬: "+SORT_LABEL[filterState.sort].replace("↕ ",""));
+};
+document.getElementById("searchInput").oninput=e=>{
+  filterState.search=e.target.value;
+  document.getElementById("clearSearch").classList.toggle("show", !!e.target.value);
+  render();
+};
+document.getElementById("clearSearch").onclick=()=>{
+  document.getElementById("searchInput").value=""; filterState.search="";
+  document.getElementById("clearSearch").classList.remove("show");
+  render();
+};
+
+document.querySelectorAll(".fontsize-group button").forEach(b=>{
+  b.onclick=()=>{ settings.fs=b.dataset.fs; saveSettings(); };
+});
+document.getElementById("settingsBtn").onclick=()=>{
+  document.getElementById("set_warn").checked=settings.warn;
+  document.getElementById("set_wide").checked=settings.wide;
+  document.getElementById("set_band").value=settings.band||"";
+  applySettings();
+  openModalById("settingsModal");
+};
+document.getElementById("set_band").onchange=e=>{ settings.band=e.target.value.trim(); saveSettings(); };
+document.querySelectorAll(".theme-row button").forEach(b=>{
+  b.onclick=()=>{ settings.theme=b.dataset.th; saveSettings(); };
+});
+document.getElementById("settingsClose").onclick=()=>closeModal("settingsModal");
+document.getElementById("set_warn").onchange=e=>{ settings.warn=e.target.checked; saveSettings(); render(); };
+document.getElementById("set_wide").onchange=e=>{ settings.wide=e.target.checked; saveSettings(); };
+document.getElementById("warnTitle").onclick=()=>document.getElementById("warnBanner").classList.toggle("open");
+document.getElementById("quickFilter").onchange=e=>{ filterState.quick=e.target.value; render(); };
+document.getElementById("monthBtn").onclick=()=>openMonthModal();
+document.getElementById("addSiteBtn").onclick=()=>openSiteModal(null);
+document.getElementById("specBtn").onclick=()=>{ document.getElementById("spec_no").value=""; document.getElementById("specResult").innerHTML="국가승강기정보센터에서 전국 모든 승강기의 제원을 조회합니다."; openModalById("specModal"); };
+document.getElementById("specClose").onclick=()=>closeModal("specModal");
+document.getElementById("specGo").onclick=async ()=>{
+  const no=digits(document.getElementById("spec_no").value);
+  const box=document.getElementById("specResult");
+  if(!no){ box.textContent="승강기번호를 입력하세요"; return; }
+  box.textContent="조회 중...";
+  try{
+    const res=await fetch(`${APPS_SCRIPT_URL}?action=elev&no=${no}&token=${encodeURIComponent(APP_TOKEN)}`);
+    const j=await res.json();
+    if(!j.buld && !j.addr){ box.textContent="정보센터에 없는 번호입니다"; return; }
+    box.innerHTML=`<b style="font-size:1.15em">${esc(j.buld)||"-"}</b> <span style="color:var(--ok);font-weight:700">(${j.stts||"-"})</span><br>
+      📍 ${esc(j.addr)||"-"}<br>
+      ${j.div?`구분: ${esc(j.div)}<br>`:""}
+      기종: <b>${esc(((j.kind||"")+" "+(j.model||"")).trim())||"-"}</b> · ${esc(j.form)||"-"}<br>
+      ${j.prpos?`건물용도: ${esc(j.prpos)}<br>`:""}
+      ${j.floor?`운행층수: ${esc(j.floor)}<br>`:""}
+      검사유효기간: <b style="color:var(--warn)">${j.applcBe||"-"} ~ ${j.applcEn||"-"}</b><br>
+      보험: ${j.insurer?`<b>${esc(j.insurer)}</b> (~${j.insEn&&j.insEn.length===8?j.insEn.slice(0,4)+"-"+j.insEn.slice(4,6)+"-"+j.insEn.slice(6):j.insEn})`:"<span style='color:var(--danger)'>가입정보 없음</span>"}`;
+  }catch(e){ box.textContent="조회 실패 — 인터넷 연결을 확인하세요"; }
+};
+document.getElementById("siteCancel").onclick=()=>closeModal("siteModal");
+document.getElementById("siteSave").onclick=saveSite;
+document.getElementById("siteDelete").onclick=deleteAddedSite;
+document.getElementById("autoFetchBtn").onclick=autoFillFromElevNo;
+document.getElementById("detailClose").onclick=()=>closeModal("detailModal");
+document.getElementById("ckCancel").onclick=()=>closeModal("checkModal");
+document.getElementById("ckSave").onclick=saveCheckModal;
+document.getElementById("mapKakao").onclick=()=>goMap("kakao");
+document.getElementById("mapNaver").onclick=()=>goMap("naver");
+document.getElementById("mapGoogle").onclick=()=>goMap("google");
+document.getElementById("mapCancel").onclick=()=>closeModal("mapModal");
+document.getElementById("monthCancel").onclick=()=>closeModal("monthModal");
+document.getElementById("bandGo").onclick=goBandSearch;
+document.getElementById("bandCancel").onclick=()=>closeModal("bandModal");
+document.getElementById("band_q").onkeydown=e=>{ if(e.key==="Enter") goBandSearch(); };
+[...document.querySelectorAll(".modal-back")].forEach(mb=>{
+  mb.onclick=e=>{ if(e.target===mb) mb.classList.remove("open"); };
+});
+window.addEventListener("online", flushPending); // 오프라인 → 온라인 복귀 시 자동 동기화
+
+/* 휴대폰 뒤로가기: 창(모달)이 열려 있으면 창만 닫고, 메인 화면에서는 나갈지 물어봄 */
+history.pushState({app:1},"");
+window.addEventListener("popstate", ()=>{
+  const open=[...document.querySelectorAll(".modal-back.open")];
+  if(open.length){
+    open.forEach(mb=>mb.classList.remove("open"));
+    history.pushState({app:1},"");
+    return;
+  }
+  if(confirm("앱을 나가시겠습니까?")){ history.back(); return; }
+  history.pushState({app:1},"");
+});
+
+/* ---------- 초기 실행 ---------- */
+(function init(){
+  updateSortBtn();
+  updateViewBtn();
+  applySettings();
+  checkMonthlyResetPrompt();
+  flushPending();
+  // 지난번 불러온 목록이 있으면 즉시 표시하고, 최신 데이터는 뒤에서 갱신
+  const cached=lsGet("hg_cacheSites",null);
+  if(cached && cached.length){
+    SITES=cached;
+    document.getElementById("sheetStatus").textContent="저장된 목록 표시 중 · 최신 데이터 확인 중...";
+    buildAssigneeFilter(); render();
+  }
+  loadSheets();
+})();
 </script>
 </body>
 </html>
