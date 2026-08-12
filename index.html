@@ -44,7 +44,7 @@
   .brand{display:flex;align-items:center;gap:11px;}
   .brand-logo{height:32px;background:#fff;border-radius:8px;padding:3px 7px;}
   .toolbar{
-    display:grid;grid-template-columns:1fr 1fr auto auto;gap:6px;align-items:center;
+    display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center;
     padding:9px 12px;background:var(--card);border-bottom:1px solid var(--line);
     position:sticky;top:54px;z-index:40;
   }
@@ -299,8 +299,7 @@
 </div>
 
 <div class="toolbar">
-  <select id="assigneeFilter"><option value="">담당자 전체</option></select>
-  <select id="teamFilter"><option value="">팀 전체</option></select>
+  <select id="whoFilter"><option value="">담당자 · 팀 전체</option></select>
   <span class="tool-right">
     <button id="viewBtn" class="sort-btn" title="보기 방식"></button>
     <button id="sortBtn" class="sort-btn" title="정렬 바꾸기"></button>
@@ -917,15 +916,23 @@ function getAllSites(){
   });
 }
 
-/* ---------- 담당자/팀 필터 옵션 ---------- */
+/* ---------- 담당자·팀 필터 (하나의 목록에서 같이 고름) ---------- */
 function buildAssigneeFilter(){
   const all=getAllSites();
-  const asg=[...new Set(all.map(s=>s.assignee).filter(Boolean))].sort();
-  const teams=[...new Set(all.map(s=>s.team).filter(Boolean))].sort();
-  const af=document.getElementById("assigneeFilter");
-  af.innerHTML='<option value="">담당자 전체</option>'+asg.map(a=>`<option>${a}</option>`).join("");
-  const tf=document.getElementById("teamFilter");
-  tf.innerHTML='<option value="">팀 전체</option>'+teams.map(t=>`<option>${t}</option>`).join("");
+  const ko=(a,b)=>a.localeCompare(b,"ko");
+  const asg=[...new Set(all.map(s=>s.assignee).filter(Boolean))].sort(ko);
+  const teams=[...new Set(all.map(s=>s.team).filter(Boolean))].sort(ko);
+  const cnt=(f,v)=>all.filter(s=>s[f]===v).length;
+  const el=document.getElementById("whoFilter");
+  el.innerHTML='<option value="">담당자 · 팀 전체</option>'
+    + (asg.length?`<optgroup label="담당자">`
+        + asg.map(a=>`<option value="p:${esc(a)}">${esc(a)} (${cnt("assignee",a)}대)</option>`).join("")
+        + `</optgroup>`:"")
+    + (teams.length?`<optgroup label="팀 · 지역">`
+        + teams.map(t=>`<option value="t:${esc(t)}">${esc(t)} (${cnt("team",t)}대)</option>`).join("")
+        + `</optgroup>`:"");
+  el.value = filterState.assignee ? "p:"+filterState.assignee
+           : filterState.team ? "t:"+filterState.team : "";
 }
 
 /* ---------- 같은 주소 묶기 ---------- */
@@ -1543,8 +1550,12 @@ function openModalById(id){ document.getElementById(id).classList.add("open"); }
 function closeModal(id){ document.getElementById(id).classList.remove("open"); }
 
 /* ---------- 이벤트 바인딩 ---------- */
-document.getElementById("assigneeFilter").onchange=e=>{ filterState.assignee=e.target.value; render(); };
-document.getElementById("teamFilter").onchange=e=>{ filterState.team=e.target.value; render(); };
+document.getElementById("whoFilter").onchange=e=>{
+  const v=e.target.value;               // "p:이름" = 담당자, "t:이름" = 팀·지역
+  filterState.assignee = v.slice(0,2)==="p:" ? v.slice(2) : "";
+  filterState.team     = v.slice(0,2)==="t:" ? v.slice(2) : "";
+  render();
+};
 function updateViewBtn(){ document.getElementById("viewBtn").textContent = viewMode==="list" ? "☰ 리스트" : "🔳 카드"; }
 document.getElementById("viewBtn").onclick=()=>{
   viewMode = viewMode==="list" ? "card" : "list";
