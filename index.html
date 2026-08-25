@@ -147,6 +147,10 @@
   .month-grid .btn.now{outline:3px solid #93c5fd;}
   .reg-badge{background:#e3f3e8;color:#15803d;font-weight:600;padding:2px 8px;border-radius:8px;font-size:.74em;}
   .delay-badge{background:#fbe6e3;color:#b91c1c;font-weight:600;padding:2px 8px;border-radius:8px;font-size:.74em;}
+  .new-badge{background:#fff1d6;color:#b45309;font-weight:700;padding:2px 8px;border-radius:8px;font-size:.74em;}
+  .new-box{background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:11px;margin-bottom:10px;color:#92400e;font-size:.93em;line-height:1.55;}
+  html[data-theme=dark] .new-badge{background:#3b2a0a;color:#fbbf24;}
+  html[data-theme=dark] .new-box{background:#2a1f08;border-color:#78350f;color:#fcd34d;}
   .cond-box{background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:11px;margin-bottom:10px;color:#991b1b;font-size:.93em;line-height:1.55;}
   html[data-theme=dark] .cond-box{background:#2a1215;border-color:#7f1d1d;color:#fca5a5;}
   #warnBanner{margin:8px 12px 0;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;padding:10px 12px;font-size:.88em;color:#b91c1c;display:none;}
@@ -500,7 +504,7 @@ const SHEET_ID = "1Z_2PNaB5qlgaT1n7nzgK4PlMJlToOBAxdOJYxngg7tc";
 // ★ Apps Script 웹앱 배포 후 그 URL을 여기에 붙여넣으면 "공유 모드"가 켜집니다.
 //   예: "https://script.google.com/macros/s/AKfycb....../exec"
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyLSQfGCNkkzufjEddlv1pzKlkhp0llxsk5mR9VMxAgxOtl6GrEH86B5_MnlhZAIl9A/exec";
-const APP_TOKEN = "hangil2026"; // Apps Script 코드의 TOKEN 과 동일해야 함
+const APP_TOKEN = "hg_1m2wtluWr0P-Au9seLR_hIdUIKa2_feu"; // Apps Script 코드의 TOKEN 과 동일해야 함
 
 const EXCLUDE_TAB = /해지/;     // 계약종료(해지) 현장 탭은 제외
 
@@ -554,6 +558,7 @@ let regs = lsGet("hg_regs", {});   // 정보센터 자체점검 등록현황 { �
 let insp = lsGet("hg_insp", {});   // 검사유효기간 { 숫자번호: {begin, end, status, kind} }
 let ins = lsGet("hg_ins", {});     // 보험가입 { 숫자번호: {company, st, en} }
 let insp2 = lsGet("hg_insp2", {}); // 최근 검사판정 { 숫자번호: {result, date, kind} }
+let newsites = lsGet("hg_newsites", {}); // 앱에서 추가했지만 아직 정보센터에 등록 안 된 현장 { ckey: {name,addr,assignee,...} }
 let pendingQueue = lsGet("hg_pending", []); // 공유 모드: 서버 전송 대기 중인 기록
 let settings = Object.assign({warn:true, dark:false, wide:true, fs:lsGet("hg_fontsize","15px"), band:"https://www.band.us/band/77575553"}, lsGet("hg_settings", {}));
 if(!settings.theme) settings.theme = settings.dark ? "dark" : "light"; // 예전 다크모드 설정 이어받기
@@ -581,6 +586,7 @@ function saveEdits(){ lsSet("hg_edits", edits); }
 function saveChecks(){ lsSet("hg_checks", checks); }
 function saveNotes(){ lsSet("hg_notes", notes); }
 function savePending(){ lsSet("hg_pending", pendingQueue); }
+function saveNewsites(){ lsSet("hg_newsites", newsites); }
 
 /* ---------- 유틸 ---------- */
 function normNo(s){ return (s||"").replace(/[-\s]/g,""); }        // 하이픈·공백 제거
@@ -623,6 +629,9 @@ function dueThisMonth(s){
   if(iv && iv.end && /^\d{4}-\d{2}/.test(iv.end)) return +iv.end.slice(5,7)===sel;
   return (s.month||"").replace(/\s/g,"")===sel+"월";
 }
+/* 앱에서 추가했지만 아직 국가승강기정보센터에 등록하지 않은 신규 현장인지 */
+function isNewUnreg(s){ return !!(s && newsites[s.ckey]); }
+
 /* 정보센터에 등록 완료된 현장은 점검 체크도 자동 완료 처리 */
 function applyRegsToChecks(){
   for(const s of SITES){
@@ -805,10 +814,13 @@ async function loadSheets(){
       const tabs=(j.tabs||[]).filter(t=>!EXCLUDE_TAB.test(t.name));
       PERSON_TABS=new Set(tabs.map(t=>t.name.trim()).filter(n=>!/현장|전체/.test(n)));
       SITES=mergeTabs(tabs);
-      applyServerChecks(j.checks||{});
+      applyServerChecks(j.checks);   // ||{} 를 뺌 - 아래 함수가 '못 받음'과 '빈 값'을 구분해야 함
       applyServerNotes(j.notes||{});
       regs=j.regs||{}; insp=j.insp||{}; ins=j.ins||{}; insp2=j.insp2||{};
-      try{ lsSet("hg_regs",regs); lsSet("hg_insp",insp); lsSet("hg_ins",ins); lsSet("hg_insp2",insp2); }catch(e){}
+      // 신규 현장(정보센터 미등록) 목록. 서버가 아직 이 항목을 안 보내는 버전이면
+      // 이 기기에 있는 목록을 그대로 둔다 (||{} 로 덮어쓰면 방금 추가한 현장이 사라짐)
+      if(j.newsites && typeof j.newsites==="object") newsites=j.newsites;
+      try{ lsSet("hg_regs",regs); lsSet("hg_insp",insp); lsSet("hg_ins",ins); lsSet("hg_insp2",insp2); lsSet("hg_newsites",newsites); }catch(e){}
       applyRegsToChecks();
       st.textContent=`승강기 ${SITES.length+addedSites.length}대 · 공유 중`;
     }else{
@@ -850,7 +862,13 @@ function getUserName(){
 
 /* 서버 점검기록을 로컬에 반영 (아직 전송 못 한 내 기록은 유지) */
 function applyServerChecks(server){
+  // 서버가 점검기록을 아예 못 보냈으면(통신 오류 등) 로컬 기록은 그대로 둔다.
+  // 이 확인이 없으면 서버 응답이 비었을 때 전 직원의 점검 체크가 한꺼번에 지워진다.
+  if(!server || typeof server!=="object") return;
   const pendNos=new Set(pendingQueue.filter(p=>p.type!=="note").map(p=>p.elevNo));
+  // 다른 직원이 체크를 해제·삭제한 것도 반영 (서버에 없는 기록은 내 폰에서도 지움)
+  // ※ 정보센터 등록으로 자동 완료된 기록은 바로 뒤에 실행되는 applyRegsToChecks()가 다시 채워준다
+  for(const no in checks){ if(!pendNos.has(no) && !(no in server)) delete checks[no]; }
   for(const no in server){ if(!pendNos.has(no)) checks[no]=server[no]; }
   saveChecks();
 }
@@ -875,6 +893,21 @@ function queueCheckSync(no, removed){
   savePending();
   flushPending();
 }
+/* 정보센터 등록을 마친 신규 현장을 '미등록' 목록에서 뺀다 (현장 자료 자체는 그대로 남음) */
+function markNewSiteDone(ckey, name){
+  if(!newsites[ckey]){ toast("이미 처리된 현장입니다"); return; }
+  if(!confirm(`"${name||ckey}" 을(를) 정보센터 등록 완료로 처리할까요?
+
+미등록 목록에서만 빠지고 현장 자료는 그대로 남습니다.`)) return;
+  delete newsites[ckey]; saveNewsites();
+  if(APPS_SCRIPT_URL){
+    pendingQueue.push({ token:APP_TOKEN, type:"newsite_done", elevNo:ckey, user:getUserName() });
+    savePending(); flushPending();
+  }
+  toast("정보센터 등록 완료로 처리했습니다");
+  render();
+}
+
 /* 특이사항 저장/삭제를 서버 전송 대기열에 추가 */
 function queueNoteSync(no, text){
   if(!APPS_SCRIPT_URL) return;
@@ -978,6 +1011,7 @@ function quickPred(q){
     case "noins": return s=>{ const iv=insp[digits(s.elevNo)]; return iv&&iv.end&&iv.end<today; };
     case "noinsurance": return s=>{ const d=digits(s.elevNo); return /\d/.test(s.elevNo||"") && !ins[d]; };
     case "conditional": return s=>{ const v=insp2[digits(s.elevNo)]; return v && (v.result||"").includes("조건부"); };
+    case "newsite": return isNewUnreg;
     default: return null;
   }
 }
@@ -1037,7 +1071,7 @@ function renderListRow(s){
   return `
     <div class="list-row ${done?'done':''}">
       <div class="lr-main">
-        <div class="lr-name" data-act="qr" data-no="${s.elevNo}">${esc(s.name)||"(이름없음)"} ${s.month?`<span class="m-badge">${s.month}</span>`:""} ${reg?`<span class="reg-badge">등록✔</span>`:""}${(()=>{const v2=insp2[digits(s.elevNo)];return v2&&/조건부|불합격/.test(v2.result||"")?` <span class="delay-badge">${esc(v2.result)}</span>`:"";})()}${done?` <span class="done-info">✔${c.user?(" "+c.user):""}</span>`:""}</div>
+        <div class="lr-name" data-act="qr" data-no="${s.elevNo}">${esc(s.name)||"(이름없음)"} ${s.month?`<span class="m-badge">${s.month}</span>`:""} ${reg?`<span class="reg-badge">등록✔</span>`:""}${isNewUnreg(s)?` <span class="new-badge">신규·미등록</span>`:""}${(()=>{const v2=insp2[digits(s.elevNo)];return v2&&/조건부|불합격/.test(v2.result||"")?` <span class="delay-badge">${esc(v2.result)}</span>`:"";})()}${done?` <span class="done-info">✔${c.user?(" "+c.user):""}</span>`:""}</div>
         <div class="lr-sub">${esc(s.addr)||"-"} · ${s.elevNo||"번호없음"}${s.access?(" · "+esc(s.access)):""}</div>
         ${note?`<div class="lr-note">📝 ${esc(note)}</div>`:""}
       </div>
@@ -1084,7 +1118,8 @@ function updateQuickOptions(scope){
     ["regdelay","등록 지연"],
     ["noins","검사기간 만료"],
     ["noinsurance","보험 미가입"],
-    ["conditional","조건부 미처리"]
+    ["conditional","조건부 미처리"],
+    ["newsite","신규 · 정보센터 미등록"]
   ];
   const sel=document.getElementById("quickFilter");
   sel.innerHTML=opts.map(([v,l])=>{
@@ -1147,6 +1182,7 @@ function renderGroup(g){
         <span class="elev-no" data-act="qr" data-no="${s.elevNo}">${s.elevNo||"(번호없음)"}</span>
         ${s.month?`<span class="m-badge">${s.month}</span>`:""}
         ${reg?`<span class="reg-badge">등록✔</span>`:""}
+        ${isNewUnreg(s)?`<span class="new-badge">신규·미등록</span>`:""}
         ${bad?`<span class="delay-badge" data-act="detail" data-key="${s._key}" style="cursor:pointer">${esc(v2.result)}</span>`:""}
         ${(!reg&&dl>=3&&settings.warn)?`<span class="delay-badge">등록지연 ${dl}일</span>`:""}
         ${done?`<span class="done-info">✔ ${c.date||""}</span>`:""}
@@ -1272,6 +1308,15 @@ function openDetail(key){
   const bad=v2 && /조건부|불합격/.test(v2.result||"");
   document.getElementById("detailTitle").textContent=(s.name||"현장 상세")+(s.elevNo?(" · "+s.elevNo):"");
   document.getElementById("detailBody").innerHTML=`
+    ${isNewUnreg(s)?`<div class="new-box">🆕 <b>정보센터 미등록 신규 현장</b><br>
+      앱에서 추가된 현장입니다. 국가승강기정보센터에는 아직 등록되지 않았습니다.
+      ${newsites[s.ckey].addedBy?`<br><span style="font-size:.9em">추가: ${esc(newsites[s.ckey].addedAt||"")} · ${esc(newsites[s.ckey].addedBy||"")}</span>`:""}
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+        <button class="btn sm" id="newsiteGo">정보센터 열기</button>
+        <button class="btn sm ok" id="newsiteDone">정보센터 등록 완료 처리</button>
+      </div>
+      <div style="margin-top:6px;font-size:.88em;">정보센터에 등록을 마친 뒤 [등록 완료 처리]를 누르면 이 목록에서 빠집니다. (현장 자료는 그대로 남습니다)</div>
+    </div>`:""}
     ${bad?`<div class="cond-box">⚠ <b>${esc(v2.result)}</b> — ${v2.date||"-"} ${esc(v2.kind||"")}<br>
       지적사항 세부내용은 국가승강기정보센터 페이지에서 확인할 수 있어요.<br>
       <button class="btn sm danger" id="condQR" style="margin-top:6px;">정보센터에서 자세히 보기</button>
@@ -1296,6 +1341,10 @@ function openDetail(key){
     </div>
   `;
   document.getElementById("detailEdit").onclick=()=>{ closeModal("detailModal"); openSiteModal(s._key); };
+  const nsGo=document.getElementById("newsiteGo");
+  if(nsGo) nsGo.onclick=()=>window.open("https://www.elevator.go.kr/","_blank");
+  const nsDone=document.getElementById("newsiteDone");
+  if(nsDone) nsDone.onclick=()=>{ markNewSiteDone(s.ckey, s.name); closeModal("detailModal"); };
   document.getElementById("detailBand").onclick=()=>toast("밴드 연동은 준비 중입니다");
   const cq=document.getElementById("condQR");
   if(cq) cq.onclick=()=>openQR(s.elevNo);
@@ -1367,6 +1416,9 @@ function openSiteModal(key){
     note.textContent="이 현장 전체에 함께 적용";
     title.textContent="현장 추가";
     ["f_elevno","f_name","f_addr","f_type","f_month","f_assignee","f_team","f_access","f_check","f_memo","f_owner","f_emergency"].forEach(id=>setField(id,""));
+    // 지금 보고 있는 담당자·팀을 미리 넣어줌 - 추가하면 바로 그 사람 목록으로 들어간다
+    if(filterState.assignee) setField("f_assignee", filterState.assignee);
+    if(filterState.team) setField("f_team", filterState.team);
     delRow.style.display="none";
   }
   openModalById("siteModal");
@@ -1392,9 +1444,14 @@ function saveSite(){
     memo:getField("f_memo"), owner:getField("f_owner"), emergency:getField("f_emergency")
   };
   if(!data.name && !data.elevNo){ toast("건물명 또는 승강기번호를 입력하세요"); return; }
+  // 담당자가 없으면 담당자별 목록에 안 나와서 아무도 못 본다 - 한 번 확인
+  if(!editingKey && !data.assignee && !data.team){
+    if(!confirm("담당자를 지정하지 않으면 담당자별 목록에 나오지 않습니다.\n그래도 저장할까요?")) return;
+  }
   // 현장 공통 정보(주소·담당·출입·연락처·체크사항·비고)는 같은 현장 모든 호기에 적용,
   // 호기 정보(번호·기종·검사월·비상통화)는 이 호기에만 적용
   const SITE_F=["name","addr","assignee","team","access","owner","check","memo"];
+  let newKey="";   // 새로 추가한 현장의 점검기록 아이디 (정보센터 미등록 목록 키)
   if(editingKey){
     edits[editingKey]={...(edits[editingKey]||{}), ...data};
     const me=getAllSites().find(x=>x._key===editingKey);
@@ -1410,13 +1467,23 @@ function saveSite(){
   }else{
     data.id="a"+Date.now(); data.source="added";
     addedSites.push(data); saveAdded();
+    // 앱에서 새로 만든 현장은 아직 국가승강기정보센터에 없다 → '정보센터 미등록' 목록에 올린다
+    newKey = /\d/.test(data.elevNo||"") ? data.elevNo : "A:"+data.id;
+    newsites[newKey]={
+      name:data.name, addr:data.addr, elevNo:data.elevNo,
+      assignee:data.assignee, team:data.team,
+      addedAt:new Date().toISOString().slice(0,10), addedBy:getUserName()
+    };
+    saveNewsites();
   }
   // 시트(전체 현장 탭)에도 반영: 번호로 행을 찾아 수정, 없으면 새 행 추가
   if(APPS_SCRIPT_URL){
     pendingQueue.push({token:APP_TOKEN, type:"site",
       elevNo:data.elevNo, name:data.name, addr:data.addr, kind:data.type, month:data.month,
-      assignee:data.assignee, access:data.access, check:data.check, memo:data.memo,
-      owner:data.owner, emergency:data.emergency});
+      assignee:data.assignee, team:data.team, access:data.access, check:data.check, memo:data.memo,
+      owner:data.owner, emergency:data.emergency,
+      // 새로 추가한 현장이면 서버가 '앱_신규현장' 탭에도 한 줄 남긴다
+      isNew: !editingKey, ckey: newKey, user: getUserName()});
     savePending(); flushPending();
     toast(editingKey?"수정됨 — 시트에도 반영됩니다":"추가됨 — 시트에도 반영됩니다");
   }else{
