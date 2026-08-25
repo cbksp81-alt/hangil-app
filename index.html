@@ -817,6 +817,7 @@ async function loadSheets(){
       const tabs=(j.tabs||[]).filter(t=>!EXCLUDE_TAB.test(t.name));
       PERSON_TABS=new Set(tabs.map(t=>t.name.trim()).filter(n=>!/현장|전체/.test(n)));
       SITES=mergeTabs(tabs);
+      pruneAddedSites();   // 시트에 반영된 추가 현장을 폰에서 정리 (대수를 찍기 전에)
       applyServerChecks(j.checks);   // ||{} 를 뺌 - 아래 함수가 '못 받음'과 '빈 값'을 구분해야 함
       applyServerNotes(j.notes||{});
       regs=j.regs||{}; insp=j.insp||{}; ins=j.ins||{}; insp2=j.insp2||{};
@@ -837,6 +838,7 @@ async function loadSheets(){
       if(!ok.length) throw new Error("모든 탭 로드 실패");
       PERSON_TABS=new Set(tabs.map(t=>t.name.trim()).filter(n=>!/현장|전체/.test(n)));
       SITES=mergeTabs(ok);
+      pruneAddedSites();
       st.textContent=`현장 ${SITES.length+addedSites.length}건 로드됨 (탭 ${ok.length}/${tabs.length}${fail?` · 실패 ${fail}`:""})`;
     }
     try{ if(SITES.length) lsSet("hg_cacheSites", SITES); }catch(e){} // 다음에 바로 열리도록 저장
@@ -951,6 +953,28 @@ async function flushPending(){
     toast("오프라인 — 연결되면 자동 동기화됩니다");
   }
   _flushing=false;
+}
+
+/* 앱에서 추가한 현장이 시트에 반영되고 나면 폰에 남은 사본을 정리한다.
+   이걸 안 하면 [시트에서 온 것] + [폰에 남은 것] 이 겹쳐서
+   같은 현장이 두 번 보이고 전체 대수·진행률도 부풀려진다. */
+function pruneAddedSites(){
+  if(!SITES.length || !addedSites.length) return;
+  const nos=new Set(), keys=new Set();
+  for(const x of SITES){
+    if(/\d/.test(x.elevNo||"")) nos.add(normNo(x.elevNo));
+    keys.add(normText(x.name)+"|"+normText(x.addr));
+  }
+  const before=addedSites.length;
+  addedSites=addedSites.filter(x=>{
+    // 번호가 있으면 번호로, 없으면 건물명+주소로 시트에 들어갔는지 확인
+    const gone = /\d/.test(x.elevNo||"")
+      ? nos.has(normNo(x.elevNo))
+      : keys.has(normText(x.name)+"|"+normText(x.addr));
+    if(gone) delete edits["A:"+x.id];   // 딸려 있던 수정 내용도 같이 정리
+    return !gone;
+  });
+  if(addedSites.length!==before){ saveAdded(); saveEdits(); }
 }
 
 /* ---------- 현장 병합(원본 + 추가 + 수정 적용) ---------- */
