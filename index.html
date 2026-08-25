@@ -922,12 +922,25 @@ async function flushPending(){
   try{
     while(pendingQueue.length){
       const p=pendingQueue[0];
+      const {_try, ...payload}=p;
       const res=await fetch(APPS_SCRIPT_URL,{
         method:"POST",
         headers:{"Content-Type":"text/plain;charset=utf-8"}, // preflight 회피용
-        body:JSON.stringify(p)
+        // 토큰은 대기열에 담긴 옛 값이 아니라 '보내는 지금'의 값을 쓴다.
+        // (토큰을 바꾸면 오프라인 중이던 기록이 전부 거부당해 사라지던 문제)
+        body:JSON.stringify({...payload, token:APP_TOKEN})
       });
       if(!res.ok) throw new Error("HTTP "+res.status);
+      // Apps Script 는 오류도 HTTP 200 으로 답한다 - 본문을 봐야 진짜 성공인지 알 수 있음
+      let j=null; try{ j=JSON.parse(await res.text()); }catch(e){}
+      if(j && j.error){
+        p._try=(p._try||0)+1; savePending();
+        if(p._try<5) throw new Error("서버: "+j.error);   // 잠시 뒤 다시 시도
+        // 5번을 거부당하면 그 기록만 빼고 나머지를 계속 보낸다 (대기열이 막히지 않게)
+        pendingQueue.shift(); savePending();
+        toast("서버가 기록 1건을 거부했습니다 ("+j.error+")");
+        continue;
+      }
       pendingQueue.shift(); savePending();
     }
   }catch(e){
