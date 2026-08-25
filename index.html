@@ -593,6 +593,9 @@ function normNo(s){ return (s||"").replace(/[-\s]/g,""); }        // 하이픈·
 function normText(s){ return (s||"").toLowerCase().replace(/[-\s()]/g,""); }
 function normHead(s){ return (s||"").replace(/\s/g,""); }         // 헤더 비교용 (공백 제거)
 function curYM(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
+/* 오늘 날짜 (YYYY-MM-DD). toISOString() 은 UTC 기준이라 한국 오전 9시 전에는
+   하루 전 날짜가 나와서, 아침 점검 기록이 어제 날짜로 저장되던 문제가 있었다. */
+function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 function digits(s){ return (s||"").replace(/\D/g,""); }
 
@@ -1014,7 +1017,7 @@ function applyFilters(sites){
 
 /* 빠른 필터 조건 (목록·건수 표시 공용) */
 function quickPred(q){
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayStr();
   switch(q){
     case "thismonth": return dueThisMonth;
     case "undone": return s=>!isDone(s.ckey);
@@ -1084,8 +1087,8 @@ function renderListRow(s){
   return `
     <div class="list-row ${done?'done':''}">
       <div class="lr-main">
-        <div class="lr-name" data-act="qr" data-no="${s.elevNo}">${esc(s.name)||"(이름없음)"} ${s.month?`<span class="m-badge">${s.month}</span>`:""} ${reg?`<span class="reg-badge">등록✔</span>`:""}${isNewUnreg(s)?` <span class="new-badge">신규·미등록</span>`:""}${(()=>{const v2=insp2[digits(s.elevNo)];return v2&&/조건부|불합격/.test(v2.result||"")?` <span class="delay-badge">${esc(v2.result)}</span>`:"";})()}${done?` <span class="done-info">✔${c.user?(" "+c.user):""}</span>`:""}</div>
-        <div class="lr-sub">${esc(s.addr)||"-"} · ${s.elevNo||"번호없음"}${s.access?(" · "+esc(s.access)):""}</div>
+        <div class="lr-name" data-act="qr" data-no="${esc(s.elevNo)}">${esc(s.name)||"(이름없음)"} ${s.month?`<span class="m-badge">${esc(s.month)}</span>`:""} ${reg?`<span class="reg-badge">등록✔</span>`:""}${isNewUnreg(s)?` <span class="new-badge">신규·미등록</span>`:""}${(()=>{const v2=insp2[digits(s.elevNo)];return v2&&/조건부|불합격/.test(v2.result||"")?` <span class="delay-badge">${esc(v2.result)}</span>`:"";})()}${done?` <span class="done-info">✔${c.user?(" "+c.user):""}</span>`:""}</div>
+        <div class="lr-sub">${esc(s.addr)||"-"} · ${esc(s.elevNo)||"번호없음"}${s.access?(" · "+esc(s.access)):""}</div>
         ${note?`<div class="lr-note">📝 ${esc(note)}</div>`:""}
       </div>
       <input type="checkbox" data-act="check" data-no="${esc(s.ckey)}" ${done?"checked":""}>
@@ -1174,12 +1177,12 @@ function renderWarnBanner(all){
   el.classList.add("show");
   document.getElementById("warnTitle").textContent=`⚠ 점검등록 지연 ${late.length}건 — 누르면 목록 보기`;
   document.getElementById("warnList").innerHTML=late.slice(0,50).map(s=>
-    `<li>${esc(s.name)} (${s.elevNo||"-"}) · 점검 ${checks[s.ckey].date} · <b>${delayDays(s)}일째 미등록</b></li>`).join("");
+    `<li>${esc(s.name)} (${esc(s.elevNo)||"-"}) · 점검 ${esc(checks[s.ckey].date)} · <b>${delayDays(s)}일째 미등록</b></li>`).join("");
 }
 
-function badgeMonth(m){ return m? `<span class="badge month">${m}</span>`:""; }
+function badgeMonth(m){ return m? `<span class="badge month">${esc(m)}</span>`:""; }
 function badgeFM(memo){ return /FM/.test(memo||"")? `<span class="badge fm">FM</span>`:""; }
-function badgeTeam(t){ return t? `<span class="badge team">${t}</span>`:""; }
+function badgeTeam(t){ return t? `<span class="badge team">${esc(t)}</span>`:""; }
 
 function renderGroup(g){
   const elevRows=g.elevs.map(s=>{
@@ -1192,8 +1195,8 @@ function renderGroup(g){
     const bad=v2&&/조건부|불합격/.test(v2.result||"");
     return `
       <div class="elev-row ${done?'done':''}">
-        <span class="elev-no" data-act="qr" data-no="${s.elevNo}">${s.elevNo||"(번호없음)"}</span>
-        ${s.month?`<span class="m-badge">${s.month}</span>`:""}
+        <span class="elev-no" data-act="qr" data-no="${esc(s.elevNo)}">${esc(s.elevNo)||"(번호없음)"}</span>
+        ${s.month?`<span class="m-badge">${esc(s.month)}</span>`:""}
         ${reg?`<span class="reg-badge">등록✔</span>`:""}
         ${isNewUnreg(s)?`<span class="new-badge">신규·미등록</span>`:""}
         ${bad?`<span class="delay-badge" data-act="detail" data-key="${s._key}" style="cursor:pointer">${esc(v2.result)}</span>`:""}
@@ -1217,9 +1220,9 @@ function renderGroup(g){
     <div class="site-card ${allDone?'done':''}">
       <div class="site-head">
         <div>
-          <div class="site-name" data-act="qr" data-no="${firstNo}">${g.name||"(이름없음)"} ${badgeFM(g.memo)}${filterState.team?"":badgeTeam(g.team)}</div>
-          <div class="site-addr" data-act="map" data-addr="${encodeURIComponent(g.addr)}">${g.addr||""}</div>
-          ${sub.length?`<div class="check-note">${sub.join(" · ")}</div>`:""}
+          <div class="site-name" data-act="qr" data-no="${esc(firstNo)}">${esc(g.name)||"(이름없음)"} ${badgeFM(g.memo)}${filterState.team?"":badgeTeam(g.team)}</div>
+          <div class="site-addr" data-act="map" data-addr="${encodeURIComponent(g.addr)}">${esc(g.addr)||""}</div>
+          ${sub.length?`<div class="check-note">${esc(sub.join(" · "))}</div>`:""}
         </div>
       </div>
       <div class="elev-list">${elevRows}</div>
@@ -1249,7 +1252,7 @@ function openCheckModal(no, presetDone){
   document.getElementById("ck_no").textContent=(s&&/\d/.test(s.elevNo||""))?s.elevNo:no;
   const c=getCheck(no);
   document.getElementById("ck_done").checked = presetDone!==undefined ? presetDone : isDone(no);
-  document.getElementById("ck_date").value = c.date || new Date().toISOString().slice(0,10);
+  document.getElementById("ck_date").value = c.date || todayStr();
   document.getElementById("ck_note").value = (notes[no]&&notes[no].text)||"";
   openModalById("checkModal");
 }
@@ -1341,9 +1344,9 @@ function openDetail(key){
       ${iv?`검사유효기간: ${iv.begin||"?"} ~ <b>${iv.end||"?"}</b>${iv.status?(" · "+esc(iv.status)):""}<br>`:""}
       <span id="liveInfo" style="color:var(--muted)">정보센터 실시간 조회 중... (인승·용량·설치일)</span>
     </div></div>
-    <div class="field"><label>주소</label><div>${s.addr||"-"}</div></div>
-    <div class="field"><label>출입정보</label><div>${s.access||"-"}</div></div>
-    <div class="field"><label>비상통화장치</label><div>${s.emergency||"-"}</div></div>
+    <div class="field"><label>주소</label><div>${esc(s.addr)||"-"}</div></div>
+    <div class="field"><label>출입정보</label><div>${esc(s.access)||"-"}</div></div>
+    <div class="field"><label>비상통화장치</label><div>${esc(s.emergency)||"-"}</div></div>
     <div class="field"><label>특이사항 (앱 기록)</label><div>${esc((notes[s.ckey]&&notes[s.ckey].text)||"")||"-"}</div></div>
     <div class="field"><label>점검 상태</label>
       <div>${isDone(s.ckey)?"✅ 완료 ("+(c.date||"")+(c.user?(" · "+c.user):"")+")":"⬜ 미점검"}</div></div>
@@ -1485,7 +1488,7 @@ function saveSite(){
     newsites[newKey]={
       name:data.name, addr:data.addr, elevNo:data.elevNo,
       assignee:data.assignee, team:data.team,
-      addedAt:new Date().toISOString().slice(0,10), addedBy:getUserName()
+      addedAt:todayStr(), addedBy:getUserName()
     };
     saveNewsites();
   }
@@ -1590,7 +1593,7 @@ function openBand(){
   const total=all.length;
   const done=all.filter(s=>isDone(s.ckey)).length;
   const late=all.filter(s=>delayDays(s)>=3);
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayStr();
   let text=`[한길승강기 점검현황] ${today}\n`;
   text+=`점검 완료: ${done} / ${total}대 (${total?Math.round(done/total*100):0}%)\n`;
   if(late.length){
@@ -1613,8 +1616,9 @@ function monthlyReset(auto){
   }
   saveChecks();
   lsSet("hg_lastResetYM", now);
-  if(!auto) toast("이번 달 점검이 초기화되었습니다");
-  render();
+  // 자동(앱 시작 시)일 때는 아직 현장 데이터를 불러오기 전이라 그리지 않는다.
+  // 여기서 그리면 "표시할 현장이 없습니다" 가 잠깐 떴다 사라진다.
+  if(!auto){ toast("이번 달 점검이 초기화되었습니다"); render(); }
 }
 function checkMonthlyResetPrompt(){
   const last=lsGet("hg_lastResetYM","");
