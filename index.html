@@ -152,6 +152,8 @@
   .cal-range .sub{font-weight:600;color:var(--muted);font-size:.85em;margin-left:6px;}
   .cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px;}
   .cal-head div{text-align:center;font-size:.72em;font-weight:700;color:var(--muted);}
+  .cal-head .cal-sun{color:#b91c1c;}
+  .cal-head .cal-sat{color:#2563eb;}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
   .cal-day{min-height:52px;border:1px solid var(--line);border-radius:8px;background:var(--card);
     display:flex;flex-direction:column;align-items:center;padding:4px 1px;cursor:pointer;overflow:hidden;}
@@ -1202,16 +1204,16 @@ function render(){
   bindCardEvents();
 }
 
-/* ---------- 검사일정 달력 (지난주 월요일부터 5주) ----------
+/* ---------- 검사일정 달력 (지난주 일요일부터 5주) ----------
    승강기별 "검사유효기간 만료일"을 날짜 칸에 배치한다. 이 날짜까지
    정기검사를 받아야 하므로 실무상 이게 곧 검사 마감일이다. */
 let calSel=null;   // 선택한 날짜 (YYYY-MM-DD)
 function renderCalendar(sites){
   const today=new Date(); today.setHours(0,0,0,0);
   const tKey=dateKey(today);
-  const mon=(today.getDay()+6)%7;                 // 월요일=0
+  const dow=today.getDay();                       // 일요일=0 (한국 달력과 같게)
   const start=new Date(today);
-  start.setDate(today.getDate()-mon-7);           // 지난주 월요일부터
+  start.setDate(today.getDate()-dow-7);           // 지난주 일요일부터
   const DAYS=35;                                  // 지난주 1주 + 앞으로 4주
 
   // 날짜별로 모으기
@@ -1287,7 +1289,7 @@ function renderCalendar(sites){
   return `
     <div class="cal-range">${fmt(dateKey(start))} ~ ${fmt(endKey)}
       <span class="sub">${bookedN?`🗓 검사 잡힘 ${bookedN}건 · `:""}대상 ${inWindow}건${overdue?` · <b style="color:var(--danger)">검사 미신청 ${overdue}대</b>`:""}</span></div>
-    <div class="cal-head"><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div><div>일</div></div>
+    <div class="cal-head"><div class="cal-sun">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div class="cal-sat">토</div></div>
     <div class="cal-grid">${cells}</div>
     ${legend}
     <div class="cal-pick">${fmt(calSel)}${calSel===tKey?" (오늘)":""} · <span class="n">${pick.length}대</span></div>
