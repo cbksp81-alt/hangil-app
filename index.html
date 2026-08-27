@@ -147,6 +147,45 @@
   .month-grid .btn.now{outline:3px solid #93c5fd;}
   .reg-badge{background:#e3f3e8;color:#15803d;font-weight:600;padding:2px 8px;border-radius:8px;font-size:.74em;}
   .delay-badge{background:#fbe6e3;color:#b91c1c;font-weight:600;padding:2px 8px;border-radius:8px;font-size:.74em;}
+  /* 검사일정 달력 (지난주 ~ 앞으로 4주) */
+  .cal-range{font-size:.9em;font-weight:800;padding:2px 2px 8px;}
+  .cal-range .sub{font-weight:600;color:var(--muted);font-size:.85em;margin-left:6px;}
+  .cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px;}
+  .cal-head div{text-align:center;font-size:.72em;font-weight:700;color:var(--muted);}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+  .cal-day{min-height:52px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+    display:flex;flex-direction:column;align-items:center;padding:4px 1px;cursor:pointer;overflow:hidden;}
+  .cal-day .dnum{font-size:.8em;font-weight:700;line-height:1.15;}
+  .cal-day .dcnt{margin-top:3px;font-size:.68em;font-weight:800;border-radius:8px;padding:1px 5px;
+    background:#dbeafe;color:#1d4ed8;white-space:nowrap;}
+  .cal-day .dcnt.over{background:#fbe6e3;color:#b91c1c;}      /* 만료·미검사 */
+  .cal-day .dcnt.soon{background:#ffedd5;color:#c2410c;}      /* 만료 임박 */
+  .cal-day .dcnt.done{background:#e3f3e8;color:#15803d;}      /* 점검 완료 */
+  .cal-day .dcnt.was{background:#eeebe4;color:#5f5a52;}       /* 지난 날짜인데 검사는 받음 */
+  .cal-legend{display:flex;flex-wrap:wrap;gap:10px;padding:9px 2px 2px;font-size:.72em;color:var(--muted);}
+  .cal-legend span{display:flex;align-items:center;gap:4px;}
+  .cal-legend i{width:9px;height:9px;border-radius:3px;display:inline-block;}
+  .st-tag{font-size:.7em;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px;}
+  .st-planned{background:#dbeafe;color:#1d4ed8;}
+  .st-soon{background:#ffedd5;color:#c2410c;}
+  .st-overdue{background:#fbe6e3;color:#b91c1c;}
+  .st-checked{background:#e3f3e8;color:#15803d;}
+  html[data-theme=dark] .cal-day .dcnt.soon{background:#3a2408;color:#fdba74;}
+  .cal-day.past{background:#faf7f4;}
+  .cal-day.wk{opacity:.55;}
+  .cal-day.today{border-color:var(--primary);border-width:2px;}
+  .cal-day.sel{background:var(--primary);border-color:var(--primary);}
+  .cal-day.sel .dnum{color:#fff;}
+  .cal-sun .dnum{color:#b91c1c;}
+  .cal-sat .dnum{color:#2563eb;}
+  .cal-day.sel .dnum{color:#fff;}
+  .cal-pick{margin:14px 0 8px;font-weight:800;font-size:.95em;padding:0 2px;}
+  .cal-pick .n{color:var(--primary);}
+  html[data-theme=dark] .cal-day{background:#151f31;}
+  html[data-theme=dark] .cal-day.past{background:#111a29;}
+  html[data-theme=dark] .cal-day .dcnt{background:#1e3a8a;color:#bfdbfe;}
+  html[data-theme=dark] .cal-day .dcnt.over{background:#3b0d0d;color:#f87171;}
+  html[data-theme=dark] .cal-day .dcnt.done{background:#0c2417;color:#4ade80;}
   .new-badge{background:#fff1d6;color:#b45309;font-weight:700;padding:2px 8px;border-radius:8px;font-size:.74em;}
   .new-box{background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:11px;margin-bottom:10px;color:#92400e;font-size:.93em;line-height:1.55;}
   html[data-theme=dark] .new-badge{background:#3b2a0a;color:#fbbf24;}
@@ -165,6 +204,12 @@
     html:not([data-wide=off]) #list{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start;}
     html:not([data-wide=off]) #list .site-card{margin-bottom:0;}
     html:not([data-wide=off]) #list .empty,html:not([data-wide=off]) #list .loading{grid-column:1/-1;}
+    /* 달력은 2열로 쪼개지면 안 되므로 가로 전체를 쓰게 한다 */
+    html:not([data-wide=off]) #list .cal-range,
+    html:not([data-wide=off]) #list .cal-head,
+    html:not([data-wide=off]) #list .cal-grid,
+    html:not([data-wide=off]) #list .cal-legend,
+    html:not([data-wide=off]) #list .cal-pick{grid-column:1/-1;}
   }
 
   /* 다크 모드 */
@@ -625,6 +670,36 @@ function delayDays(s){
   if(!(c && c.done && c.month===curYM() && c.date)) return 0;
   return Math.floor((Date.now()-new Date(c.date+"T00:00:00").getTime())/86400000);
 }
+/* 검사유효기간 만료일을 YYYY-MM-DD 로. 시트에 "20260930" 처럼 하이픈 없이
+   들어온 값(23건)도 같이 처리한다. 없으면 빈 문자열. */
+function inspEndDate(s){
+  const iv=insp[digits(s.elevNo)];
+  const e=String((iv&&iv.end)||"").replace(/[^0-9]/g,"");
+  return e.length===8 ? e.slice(0,4)+"-"+e.slice(4,6)+"-"+e.slice(6) : "";
+}
+function dateKey(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+
+/* 검사 상태 구분
+   planned  앞으로 검사 예정 (유효기간이 아직 남음)
+   soon     7일 이내 만료 - 검사 신청 서둘러야 함
+   overdue  유효기간이 지났는데 그 이후 검사기록이 없음 = 미검사 (과태료 위험)
+   checked  유효기간은 지났지만 그 뒤에 검사를 받은 기록이 있음 (유효기간 데이터가 아직 갱신 전)
+   none     검사정보 없음 */
+function inspState(s){
+  const end=inspEndDate(s);
+  if(!end) return "none";
+  const t=todayStr();
+  if(end>=t){
+    const gap=Math.round((new Date(end+"T00:00:00")-new Date(t+"T00:00:00"))/86400000);
+    return gap<=7 ? "soon" : "planned";
+  }
+  const v2=insp2[digits(s.elevNo)];
+  const raw=String((v2&&v2.date)||"").replace(/[^0-9]/g,"");
+  const last=raw.length===8 ? raw.slice(0,4)+"-"+raw.slice(4,6)+"-"+raw.slice(6) : "";
+  return (last && last>end) ? "checked" : "overdue";
+}
+const STATE_LABEL={planned:"검사 예정", soon:"만료 임박", overdue:"만료·미검사", checked:"검사 받음", none:""};
+
 function dueThisMonth(s){
   // 선택한 달(기본: 이번 달)의 검사대상인지 - API 유효기간 우선, 없으면 시트의 검사(월) 칸
   const sel=filterState.selMonth;
@@ -1048,7 +1123,7 @@ function quickPred(q){
     case "done": return s=>isDone(s.ckey);
     case "registered": return isRegistered;
     case "regdelay": return s=>delayDays(s)>=3;
-    case "noins": return s=>{ const iv=insp[digits(s.elevNo)]; return iv&&iv.end&&iv.end<today; };
+    case "noins": return s=>inspState(s)==="overdue";   // 만료됐고 그 뒤 검사기록도 없는 것만
     case "noinsurance": return s=>{ const d=digits(s.elevNo); return /\d/.test(s.elevNo||"") && !ins[d]; };
     case "conditional": return s=>{ const v=insp2[digits(s.elevNo)]; return v && (v.result||"").includes("조건부"); };
     case "newsite": return isNewUnreg;
@@ -1088,6 +1163,13 @@ function render(){
   const countHtml = filterState.search
     ? `<div class="search-count">🔍 "${esc(filterState.search)}" 검색 결과 <b>${filtered.length}대</b></div>` : "";
 
+  if(viewMode==="cal"){
+    // 달력은 해당 날짜에 아무것도 없어도 격자는 보여줘야 하므로 빈 결과 처리보다 먼저
+    listEl.innerHTML=countHtml+renderCalendar(filtered);
+    bindCardEvents();
+    return;
+  }
+
   if(filtered.length===0){
     listEl.innerHTML=countHtml+`<div class="empty">표시할 현장이 없습니다.</div>`;
     return;
@@ -1102,9 +1184,89 @@ function render(){
   bindCardEvents();
 }
 
+/* ---------- 검사일정 달력 (지난주 월요일부터 5주) ----------
+   승강기별 "검사유효기간 만료일"을 날짜 칸에 배치한다. 이 날짜까지
+   정기검사를 받아야 하므로 실무상 이게 곧 검사 마감일이다. */
+let calSel=null;   // 선택한 날짜 (YYYY-MM-DD)
+function renderCalendar(sites){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const tKey=dateKey(today);
+  const mon=(today.getDay()+6)%7;                 // 월요일=0
+  const start=new Date(today);
+  start.setDate(today.getDate()-mon-7);           // 지난주 월요일부터
+  const DAYS=35;                                  // 지난주 1주 + 앞으로 4주
+
+  // 날짜별로 승강기 모으기
+  const byDay={};
+  let outside=0, overdue=0;
+  for(const x of sites){
+    const e=inspEndDate(x);
+    if(!e) continue;
+    if(inspState(x)==="overdue") overdue++;
+    (byDay[e]=byDay[e]||[]).push(x);
+  }
+  const endKey=dateKey(new Date(start.getFullYear(), start.getMonth(), start.getDate()+DAYS-1));
+  for(const d in byDay){ if(d<dateKey(start) || d>endKey) outside+=byDay[d].length; }
+
+  if(calSel===null || calSel<dateKey(start) || calSel>endKey) calSel=tKey;
+
+  const inWindow=Object.keys(byDay).filter(d=>d>=dateKey(start)&&d<=endKey)
+                       .reduce((n,d)=>n+byDay[d].length,0);
+  const fmt=k=>(+k.slice(5,7))+"월 "+(+k.slice(8,10))+"일";
+
+  let cells="";
+  for(let i=0;i<DAYS;i++){
+    const d=new Date(start.getFullYear(), start.getMonth(), start.getDate()+i);
+    const k=dateKey(d), dw=d.getDay();
+    const list=byDay[k]||[];
+    const undone=list.filter(x=>!isDone(x.ckey)).length;
+    const cls=["cal-day"];
+    if(dw===0) cls.push("cal-sun"); else if(dw===6) cls.push("cal-sat");
+    if(k<tKey) cls.push("past");
+    if(i<7) cls.push("wk");                       // 지난주는 흐리게
+    if(k===tKey) cls.push("today");
+    if(k===calSel) cls.push("sel");
+    let cnt="";
+    if(list.length){
+      // 그 날의 상태 중 급한 것을 대표로 (만료·미검사 > 임박 > 예정)
+      const st=list.map(inspState);
+      const cc = undone===0 ? "done"
+               : st.includes("overdue") ? "over"
+               : st.includes("soon") ? "soon"
+               : st.every(x=>x==="checked") ? "was" : "";
+      cnt=`<span class="dcnt ${cc}">${undone===0?"✔":undone}</span>`;
+    }
+    cells+=`<div class="${cls.join(" ")}" data-act="calday" data-d="${k}">
+      <span class="dnum">${d.getDate()===1?((d.getMonth()+1)+"/1"):d.getDate()}</span>${cnt}</div>`;
+  }
+
+  const pick=byDay[calSel]||[];
+  const pickHtml = pick.length
+    ? pick.map(x=>renderListRow(x, true)).join("")
+    : `<div class="empty" style="padding:18px 0;">이 날 검사 예정인 승강기가 없습니다.</div>`;
+  const legend=`<div class="cal-legend">
+      <span><i style="background:#dbeafe"></i>검사 예정</span>
+      <span><i style="background:#ffedd5"></i>만료 임박(7일)</span>
+      <span><i style="background:#fbe6e3"></i>만료·미검사</span>
+      <span><i style="background:#e3f3e8"></i>점검 완료</span>
+      <span><i style="background:#eeebe4"></i>검사 받음</span>
+    </div>`;
+
+  return `
+    <div class="cal-range">${fmt(dateKey(start))} ~ ${fmt(endKey)}
+      <span class="sub">이 기간 ${inWindow}대${overdue?` · <b style="color:var(--danger)">만료·미검사 ${overdue}대</b>`:""}${outside?` · 기간 밖 ${outside}대`:""}</span></div>
+    <div class="cal-head"><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div><div>일</div></div>
+    <div class="cal-grid">${cells}</div>
+    ${legend}
+    <div class="cal-pick">${fmt(calSel)}${calSel===tKey?" (오늘)":""} · <span class="n">${pick.length}대</span></div>
+    ${pickHtml}`;
+}
+
 /* ---------- 리스트 보기 (한 줄 요약) ---------- */
-function renderListRow(s){
+function renderListRow(s, withState){
   const done=isDone(s.ckey);
+  const stTag = withState ? (()=>{ const st=inspState(s);
+      return st==="none" ? "" : `<span class="st-tag st-${st}">${STATE_LABEL[st]}</span>`; })() : "";
   const c=getCheck(s.ckey);
   const note=notes[s.ckey]&&notes[s.ckey].text;
   const reg=isRegistered(s);
@@ -1113,6 +1275,7 @@ function renderListRow(s){
       <div class="lr-main">
         <div class="lr-name" data-act="qr" data-no="${esc(s.elevNo)}">${esc(s.name)||"(이름없음)"} ${s.month?`<span class="m-badge">${esc(s.month)}</span>`:""} ${reg?`<span class="reg-badge">등록✔</span>`:""}${isNewUnreg(s)?` <span class="new-badge">신규·미등록</span>`:""}${(()=>{const v2=insp2[digits(s.elevNo)];return v2&&/조건부|불합격/.test(v2.result||"")?` <span class="delay-badge">${esc(v2.result)}</span>`:"";})()}${done?` <span class="done-info">✔${c.user?(" "+c.user):""}</span>`:""}</div>
         <div class="lr-sub">${esc(s.addr)||"-"} · ${esc(s.elevNo)||"번호없음"}${s.access?(" · "+esc(s.access)):""}</div>
+        ${stTag?`<div style="margin-top:3px;">${stTag}</div>`:""}
         ${note?`<div class="lr-note">📝 ${esc(note)}</div>`:""}
       </div>
       <input type="checkbox" data-act="check" data-no="${esc(s.ckey)}" ${done?"checked":""}>
@@ -1263,6 +1426,7 @@ function bindCardEvents(){
     else if(act==="edit") el.onclick=()=>openSiteModal(el.dataset.key);
     else if(act==="band") el.onclick=()=>toast("밴드 연동은 준비 중입니다"); // 보류: 나중에 openBandSearch(el.dataset.name) 로 복원
     else if(act==="detail") el.onclick=()=>openDetail(el.dataset.key);
+    else if(act==="calday") el.onclick=()=>{ calSel=el.dataset.d; render(); };
   });
 }
 
@@ -1664,9 +1828,12 @@ document.getElementById("whoFilter").onchange=e=>{
   filterState.team     = v.slice(0,2)==="t:" ? v.slice(2) : "";
   render();
 };
-function updateViewBtn(){ document.getElementById("viewBtn").textContent = viewMode==="list" ? "☰ 리스트" : "🔳 카드"; }
+const VIEW_ORDER=["card","list","cal"];
+const VIEW_LABEL={card:"🔳 카드", list:"☰ 리스트", cal:"📅 검사일정"};
+function updateViewBtn(){ document.getElementById("viewBtn").textContent = VIEW_LABEL[viewMode] || VIEW_LABEL.card; }
 document.getElementById("viewBtn").onclick=()=>{
-  viewMode = viewMode==="list" ? "card" : "list";
+  const i=VIEW_ORDER.indexOf(viewMode);
+  viewMode=VIEW_ORDER[(i+1)%VIEW_ORDER.length];
   lsSet("hg_view", viewMode);
   updateViewBtn(); render();
 };
