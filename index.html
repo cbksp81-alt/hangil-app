@@ -162,6 +162,13 @@
   .cal-day .dcnt.soon{background:#ffedd5;color:#c2410c;}      /* 만료 임박 */
   .cal-day .dcnt.done{background:#e3f3e8;color:#15803d;}      /* 점검 완료 */
   .cal-day .dcnt.was{background:#eeebe4;color:#5f5a52;}       /* 지난 날짜인데 검사는 받음 */
+  .cal-day .dcnt.bkd{background:#ede9fe;color:#6d28d9;}
+  .cal-day .dcnt.bkd.fix{background:#ddd6fe;color:#5b21b6;font-weight:900;}
+  .bk-line{margin-top:4px;font-size:.83em;color:#5b21b6;line-height:1.5;}
+  .bk-org{color:var(--muted);font-size:.92em;margin-top:1px;}
+  html[data-theme=dark] .cal-day .dcnt.bkd{background:#2e1065;color:#c4b5fd;}
+  html[data-theme=dark] .bk-line{color:#c4b5fd;}
+  .cal-day{min-height:58px;}
   .cal-legend{display:flex;flex-wrap:wrap;gap:10px;padding:9px 2px 2px;font-size:.72em;color:var(--muted);}
   .cal-legend span{display:flex;align-items:center;gap:4px;}
   .cal-legend i{width:9px;height:9px;border-radius:3px;display:inline-block;}
@@ -603,6 +610,7 @@ let regs = lsGet("hg_regs", {});   // 정보센터 자체점검 등록현황 { �
 let insp = lsGet("hg_insp", {});   // 검사유효기간 { 숫자번호: {begin, end, status, kind} }
 let ins = lsGet("hg_ins", {});     // 보험가입 { 숫자번호: {company, st, en} }
 let insp2 = lsGet("hg_insp2", {}); // 최근 검사판정 { 숫자번호: {result, date, kind} }
+let books = lsGet("hg_books", {});       // 정보센터에서 가져온 검사 예약 { 숫자번호: [{date,time,kind,who,org,conf,name}] }
 let newsites = lsGet("hg_newsites", {}); // 앱에서 추가했지만 아직 정보센터에 등록 안 된 현장 { ckey: {name,addr,assignee,...} }
 let pendingQueue = lsGet("hg_pending", []); // 공유 모드: 서버 전송 대기 중인 기록
 let settings = Object.assign({warn:true, dark:false, wide:true, fs:lsGet("hg_fontsize","15px"), band:"https://www.band.us/band/77575553"}, lsGet("hg_settings", {}));
@@ -699,6 +707,14 @@ function inspState(s){
   return (last && last>end) ? "checked" : "overdue";
 }
 const STATE_LABEL={planned:"검사 예정", soon:"만료 임박", overdue:"만료·미검사", checked:"검사 받음", none:""};
+
+/* 이 승강기에 잡혀 있는 검사 일정 (정보센터에서 가져온 것) */
+function bookingsFor(s){ return books[digits(s.elevNo)] || []; }
+/* 검사를 받아야 하는데(임박·만료) 아직 검사 신청이 안 된 현장 - 제일 급한 것 */
+function needsBooking(s){
+  const st=inspState(s);
+  return (st==="soon"||st==="overdue") && !bookingsFor(s).length;
+}
 
 function dueThisMonth(s){
   // 선택한 달(기본: 이번 달)의 검사대상인지 - API 유효기간 우선, 없으면 시트의 검사(월) 칸
@@ -899,7 +915,8 @@ async function loadSheets(){
       // 신규 현장(정보센터 미등록) 목록. 서버가 아직 이 항목을 안 보내는 버전이면
       // 이 기기에 있는 목록을 그대로 둔다 (||{} 로 덮어쓰면 방금 추가한 현장이 사라짐)
       if(j.newsites && typeof j.newsites==="object") newsites=j.newsites;
-      try{ lsSet("hg_regs",regs); lsSet("hg_insp",insp); lsSet("hg_ins",ins); lsSet("hg_insp2",insp2); lsSet("hg_newsites",newsites); }catch(e){}
+      if(j.books && typeof j.books==="object") books=j.books;   // 검사 예약 일정
+      try{ lsSet("hg_regs",regs); lsSet("hg_insp",insp); lsSet("hg_ins",ins); lsSet("hg_insp2",insp2); lsSet("hg_newsites",newsites); lsSet("hg_books",books); }catch(e){}
       applyRegsToChecks();
       st.textContent=`승강기 ${SITES.length+addedSites.length}대 · 공유 중`;
     }else{
@@ -1127,6 +1144,7 @@ function quickPred(q){
     case "noinsurance": return s=>{ const d=digits(s.elevNo); return /\d/.test(s.elevNo||"") && !ins[d]; };
     case "conditional": return s=>{ const v=insp2[digits(s.elevNo)]; return v && (v.result||"").includes("조건부"); };
     case "newsite": return isNewUnreg;
+    case "nobooking": return needsBooking;
     default: return null;
   }
 }
@@ -1196,14 +1214,20 @@ function renderCalendar(sites){
   start.setDate(today.getDate()-mon-7);           // 지난주 월요일부터
   const DAYS=35;                                  // 지난주 1주 + 앞으로 4주
 
-  // 날짜별로 승강기 모으기
+  // 날짜별로 모으기
+  //  - 검사가 잡혀 있으면 → 그 '검사 예정일'에 배치 (정보센터에서 가져온 실제 일정)
+  //  - 안 잡혀 있으면    → 그 승강기의 '검사유효기간 만료일'에 배치 (언제까지 받아야 하는지)
   const byDay={};
-  let outside=0, overdue=0;
+  let outside=0, overdue=0, bookedN=0;
   for(const x of sites){
+    const bks=bookingsFor(x);
+    if(bks.length){
+      bks.forEach(b=>{ if(b.date){ (byDay[b.date]=byDay[b.date]||[]).push({s:x,b:b}); bookedN++; } });
+      continue;
+    }
+    if(needsBooking(x)) overdue++;
     const e=inspEndDate(x);
-    if(!e) continue;
-    if(inspState(x)==="overdue") overdue++;
-    (byDay[e]=byDay[e]||[]).push(x);
+    if(e) (byDay[e]=byDay[e]||[]).push({s:x,b:null});
   }
   const endKey=dateKey(new Date(start.getFullYear(), start.getMonth(), start.getDate()+DAYS-1));
   for(const d in byDay){ if(d<dateKey(start) || d>endKey) outside+=byDay[d].length; }
@@ -1219,7 +1243,8 @@ function renderCalendar(sites){
     const d=new Date(start.getFullYear(), start.getMonth(), start.getDate()+i);
     const k=dateKey(d), dw=d.getDay();
     const list=byDay[k]||[];
-    const undone=list.filter(x=>!isDone(x.ckey)).length;
+    const bkList=list.filter(e=>e.b), duList=list.filter(e=>!e.b);
+    const undone=duList.filter(e=>!isDone(e.s.ckey)).length;
     const cls=["cal-day"];
     if(dw===0) cls.push("cal-sun"); else if(dw===6) cls.push("cal-sat");
     if(k<tKey) cls.push("past");
@@ -1227,24 +1252,31 @@ function renderCalendar(sites){
     if(k===tKey) cls.push("today");
     if(k===calSel) cls.push("sel");
     let cnt="";
-    if(list.length){
-      // 그 날의 상태 중 급한 것을 대표로 (만료·미검사 > 임박 > 예정)
-      const st=list.map(inspState);
+    if(bkList.length){
+      // 검사가 실제로 잡힌 날 - 확정이 하나라도 있으면 진하게
+      const conf=bkList.some(e=>/확정/.test(e.b.conf||""));
+      cnt+=`<span class="dcnt bkd${conf?" fix":""}">🗓${bkList.length}</span>`;
+    }
+    if(duList.length){
+      // 그 날 만료되는 것들 중 급한 상태를 대표로 (만료·미검사 > 임박 > 예정)
+      const st=duList.map(e=>inspState(e.s));
       const cc = undone===0 ? "done"
                : st.includes("overdue") ? "over"
                : st.includes("soon") ? "soon"
                : st.every(x=>x==="checked") ? "was" : "";
-      cnt=`<span class="dcnt ${cc}">${undone===0?"✔":undone}</span>`;
+      cnt+=`<span class="dcnt ${cc}">${undone===0?"✔":undone}</span>`;
     }
     cells+=`<div class="${cls.join(" ")}" data-act="calday" data-d="${k}">
       <span class="dnum">${d.getDate()===1?((d.getMonth()+1)+"/1"):d.getDate()}</span>${cnt}</div>`;
   }
 
-  const pick=byDay[calSel]||[];
+  const pick=(byDay[calSel]||[]).slice().sort((a,b)=>
+      ((a.b&&a.b.time)||"~").localeCompare((b.b&&b.b.time)||"~"));
   const pickHtml = pick.length
-    ? pick.map(x=>renderListRow(x, true)).join("")
+    ? pick.map(renderCalRow).join("")
     : `<div class="empty" style="padding:18px 0;">이 날 검사 예정인 승강기가 없습니다.</div>`;
   const legend=`<div class="cal-legend">
+      <span><i style="background:#ede9fe"></i>🗓 검사 잡힘</span>
       <span><i style="background:#dbeafe"></i>검사 예정</span>
       <span><i style="background:#ffedd5"></i>만료 임박(7일)</span>
       <span><i style="background:#fbe6e3"></i>만료·미검사</span>
@@ -1254,12 +1286,37 @@ function renderCalendar(sites){
 
   return `
     <div class="cal-range">${fmt(dateKey(start))} ~ ${fmt(endKey)}
-      <span class="sub">이 기간 ${inWindow}대${overdue?` · <b style="color:var(--danger)">만료·미검사 ${overdue}대</b>`:""}${outside?` · 기간 밖 ${outside}대`:""}</span></div>
+      <span class="sub">${bookedN?`🗓 검사 잡힘 ${bookedN}건 · `:""}대상 ${inWindow}건${overdue?` · <b style="color:var(--danger)">검사 미신청 ${overdue}대</b>`:""}</span></div>
     <div class="cal-head"><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div><div>일</div></div>
     <div class="cal-grid">${cells}</div>
     ${legend}
     <div class="cal-pick">${fmt(calSel)}${calSel===tKey?" (오늘)":""} · <span class="n">${pick.length}대</span></div>
     ${pickHtml}`;
+}
+
+/* 달력에서 날짜를 눌렀을 때 아래에 뜨는 한 줄.
+   검사가 잡혀 있으면 시간·검사종류·검사자·검사기관을, 아니면 검사 상태를 보여준다. */
+function renderCalRow(e){
+  const s=e.s, b=e.b;
+  const done=isDone(s.ckey);
+  const st=inspState(s);
+  const info = b
+    ? `<div class="bk-line">🗓 <b>${esc(b.time)||"시간 미정"}</b> · ${esc(b.kind)||"검사"}
+         ${b.who?` · 검사자 ${esc(b.who)}`:""}
+         <span class="st-tag ${/확정/.test(b.conf||"")?"st-checked":"st-planned"}">${esc(b.conf)||"예정"}</span>
+         ${b.org?`<div class="bk-org">${esc(b.org)}</div>`:""}</div>`
+    : `<div style="margin-top:3px;"><span class="st-tag st-${st}">${STATE_LABEL[st]||""}</span>${
+         needsBooking(s)?` <span class="st-tag st-overdue">검사 미신청</span>`:""}</div>`;
+  return `
+    <div class="list-row ${done?'done':''}">
+      <div class="lr-main">
+        <div class="lr-name" data-act="qr" data-no="${esc(s.elevNo)}">${esc(s.name)||"(이름없음)"}</div>
+        <div class="lr-sub">${esc(s.addr)||"-"} · ${esc(s.elevNo)||"번호없음"}${s.access?(" · "+esc(s.access)):""}</div>
+        ${info}
+      </div>
+      <input type="checkbox" data-act="check" data-no="${esc(s.ckey)}" ${done?"checked":""}>
+      <button class="btn sm secondary" data-act="detail" data-key="${s._key}">정보</button>
+    </div>`;
 }
 
 /* ---------- 리스트 보기 (한 줄 요약) ---------- */
@@ -1322,6 +1379,7 @@ function updateQuickOptions(scope){
     ["noins","검사기간 만료"],
     ["noinsurance","보험 미가입"],
     ["conditional","조건부 미처리"],
+    ["nobooking","검사 미신청 (임박·만료)"],
     ["newsite","신규 · 정보센터 미등록"]
   ];
   const sel=document.getElementById("quickFilter");
@@ -1532,6 +1590,11 @@ function openDetail(key){
       ${iv?`검사유효기간: ${iv.begin||"?"} ~ <b>${iv.end||"?"}</b>${iv.status?(" · "+esc(iv.status)):""}<br>`:""}
       <span id="liveInfo" style="color:var(--muted)">정보센터 실시간 조회 중... (인승·용량·설치일)</span>
     </div></div>
+    ${(()=>{const bs=bookingsFor(s); if(!bs.length) return "";
+        return `<div class="field"><label>잡혀 있는 검사</label><div>`+bs.map(b=>
+          `🗓 <b>${esc(b.date)} ${esc(b.time)}</b> · ${esc(b.kind)||"검사"}${b.who?` · 검사자 ${esc(b.who)}`:""}
+           <span class="st-tag ${/확정/.test(b.conf||"")?"st-checked":"st-planned"}">${esc(b.conf)||"예정"}</span>
+           ${b.org?`<br><span style="color:var(--muted);font-size:.9em">${esc(b.org)}</span>`:""}`).join("<hr style='border:0;border-top:1px solid var(--line);margin:6px 0'>")+`</div></div>`;})()}
     <div class="field"><label>주소</label><div>${esc(s.addr)||"-"}</div></div>
     <div class="field"><label>출입정보</label><div>${esc(s.access)||"-"}</div></div>
     <div class="field"><label>비상통화장치</label><div>${esc(s.emergency)||"-"}</div></div>
