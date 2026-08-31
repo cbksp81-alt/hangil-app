@@ -1666,7 +1666,9 @@ function openSiteModal(key){
   // 담당자·팀은 시트에 실제로 있는 이름만 고르게 함 (직접 입력 시 오타로 엉뚱한 담당이 생기던 문제)
   const sitesAll=getAllSites();
   const cur = key ? sitesAll.find(x=>x._key===key) : null;
-  fillPicker("f_assignee", sitesAll.map(x=>x.assignee), cur?cur.assignee:"", "담당자 선택");
+  // 담당자 목록은 시트 하단의 담당자 탭 이름을 기준으로 한다.
+  // 현재 맡은 현장이 하나도 없는 직원(신입·복귀 등)도 고를 수 있어야 하기 때문.
+  fillPicker("f_assignee", [...PERSON_TABS, ...sitesAll.map(x=>x.assignee)], cur?cur.assignee:"", "담당자 선택");
   fillPicker("f_team", sitesAll.map(x=>x.team), cur?cur.team:"", "팀·지역 없음");
   if(key){
     const all=sitesAll;
@@ -1721,6 +1723,13 @@ function saveSite(){
   // 호기 정보(번호·기종·검사월·비상통화)는 이 호기에만 적용
   const SITE_F=["name","addr","assignee","team","access","owner","check","memo"];
   let newKey="";   // 새로 추가한 현장의 점검기록 아이디 (정보센터 미등록 목록 키)
+  const before = editingKey ? getAllSites().find(x=>x._key===editingKey) : null;
+  // 담당자·팀이 실제로 바뀐 경우에만 같은 현장의 다른 호기까지 서버로 보낸다.
+  // 서버는 승강기 한 대씩만 담당자 탭을 옮기기 때문에, 호기마다 보내지 않으면
+  // 나머지 호기가 옛 담당자 탭에 남고 다음날 새벽 동기화 때 담당이 되돌아간다.
+  const whoChanged = !!before &&
+    ((before.assignee||"") !== data.assignee || (before.team||"") !== data.team);
+  const sibs=[];   // 같이 옮겨야 할 같은 현장의 다른 호기
   if(editingKey){
     edits[editingKey]={...(edits[editingKey]||{}), ...data};
     const me=getAllSites().find(x=>x._key===editingKey);
@@ -1730,6 +1739,7 @@ function saveSite(){
         if(x._key===editingKey) return;
         if(normText(x.name)!==normText(me.name) || normText(x.addr)!==normText(me.addr)) return;
         edits[x._key]={...(edits[x._key]||{}), ...common};
+        if(whoChanged && /\d/.test(x.elevNo||"")) sibs.push(x);
       });
     }
     saveEdits();
@@ -1747,14 +1757,19 @@ function saveSite(){
   }
   // 시트(전체 현장 탭)에도 반영: 번호로 행을 찾아 수정, 없으면 새 행 추가
   if(APPS_SCRIPT_URL){
-    pendingQueue.push({token:APP_TOKEN, type:"site",
-      elevNo:data.elevNo, name:data.name, addr:data.addr, kind:data.type, month:data.month,
+    // 공통 정보는 새 값으로, 호기별 정보(번호·기종·검사월·비상통화)는 그 호기 것 그대로
+    const payload=(o,isNewOne)=>({token:APP_TOKEN, type:"site",
+      elevNo:o.elevNo, name:data.name, addr:data.addr, kind:o.type, month:o.month,
       assignee:data.assignee, team:data.team, access:data.access, check:data.check, memo:data.memo,
-      owner:data.owner, emergency:data.emergency,
+      owner:data.owner, emergency:o.emergency,
       // 새로 추가한 현장이면 서버가 '앱_신규현장' 탭에도 한 줄 남긴다
-      isNew: !editingKey, ckey: newKey, user: getUserName()});
+      isNew: !!isNewOne, ckey: isNewOne? newKey : "", user: getUserName()});
+    pendingQueue.push(payload(data, !editingKey));
+    sibs.forEach(x=>pendingQueue.push(payload(x, false)));   // 현장 전체를 같이 이동
     savePending(); flushPending();
-    toast(editingKey?"수정됨 — 시트에도 반영됩니다":"추가됨 — 시트에도 반영됩니다");
+    toast(!editingKey ? "추가됨 — 시트에도 반영됩니다"
+         : sibs.length ? `수정됨 — 이 현장 ${sibs.length+1}대 담당자가 함께 바뀝니다`
+         : "수정됨 — 시트에도 반영됩니다");
   }else{
     toast(editingKey?"현장 정보 수정됨":"현장 추가됨");
   }
