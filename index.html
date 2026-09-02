@@ -418,7 +418,6 @@
     <div class="field"><label>건물명</label><input type="text" id="f_name" placeholder="예: 성산고시텔"></div>
     <div class="field"><label>현장주소</label><input type="text" id="f_addr" placeholder="예: 오산시 성산새싹길 12"></div>
     <div class="field"><label>담당자</label><select id="f_assignee"></select></div>
-    <div class="field"><label>팀 · 지역</label><select id="f_team"></select></div>
     <div class="field"><label>출입 정보 (현관·키 등)</label><input type="text" id="f_access" placeholder="예: 현관 4533"></div>
     <div class="field"><label>건물주 연락처</label><input type="text" id="f_owner" placeholder="예: 010-0000-0000"></div>
     <div class="field"><label>체크사항</label><input type="text" id="f_check" placeholder="현장 전체에 해당하는 내용"></div>
@@ -607,7 +606,8 @@ const FALLBACK_TABS = [
 
 /* ---------- 상태 ---------- */
 let SITES = [];               // 시트에서 읽어 병합한 현장(승강기 단위)
-let PERSON_TABS = new Set();  // 시트 하단 탭에 있는 담당자 이름들 (이 사람들만 담당자로 인정)
+let PERSON_TABS = new Set();  // 시트 하단 탭 이름 전부 (사람 + 지역). 이 이름만 담당으로 인정한다.
+                              // 팀을 따로 두지 않고 "오산현장" 같은 지역명도 담당자로 취급.
 let addedSites = loadAdded(); // 앱에서 추가한 현장
 let edits = loadEdits();      // 현장 수정 내용 { key: {필드...} }
 let checks = loadChecks();    // 점검 기록 { elevNo: {done, date, month, user} }
@@ -622,7 +622,7 @@ let pendingQueue = lsGet("hg_pending", []); // 공유 모드: 서버 전송 대�
 let settings = Object.assign({warn:true, dark:false, wide:true, fs:lsGet("hg_fontsize","15px"), band:"https://www.band.us/band/77575553"}, lsGet("hg_settings", {}));
 if(!settings.theme) settings.theme = settings.dark ? "dark" : "light"; // 예전 다크모드 설정 이어받기
 let viewMode = lsGet("hg_view","card"); // "card" | "list"
-let filterState = { assignee:"", team:"", quick:"all", search:"", sort:lsGet("hg_sort","sheet"), selMonth:new Date().getMonth()+1 };
+let filterState = { assignee:"", quick:"all", search:"", sort:lsGet("hg_sort","sheet"), selMonth:new Date().getMonth()+1 };
 
 /* ---------- localStorage 헬퍼 (저장소 차단 환경에서도 앱이 죽지 않게 메모리 대체) ---------- */
 const __memStore={};
@@ -812,8 +812,8 @@ function parseTab(tab){
   const hi=findHeaderRow(tab.rows);
   if(hi<0) return [];
   const cols=mapColumns(tab.rows[hi]);
-  const isPersonTab = PERSON_TABS.has(tab.name.trim()); // "최병관" 같은 담당자 이름 탭
-  const isRegionTab = /현장/.test(tab.name) && !/전체/.test(tab.name); // "오산현장" 같은 지역 탭
+  // 사람 탭("최병관")이든 지역 탭("오산현장")이든 그 탭에 실린 현장은 그 이름이 담당이다
+  const isOwnerTab = PERSON_TABS.has(tab.name.trim());
   const out=[];
   const bOcc={}; // 번호 없는 현장의 건물별 순서 (같은 건물에 여러 대 있어도 각각 유지)
   for(let i=hi+1;i<tab.rows.length;i++){
@@ -834,13 +834,13 @@ function parseTab(tab){
       memo:get("memo"), owner:get("owner"), emergency:get("emergency"),
       // 담당 칸 값이 시트 하단 탭에 있는 사람일 때만 담당자로 인정
       // (이종구님·김현덕·전화번호·임대인 같은 잘못된 값 걸러냄)
+      // 담당 칸 값이 시트 탭에 있는 이름일 때만 담당으로 인정
+      // (이종구님·전화번호·임대인 같은 잘못된 값 걸러냄)
       assignee: PERSON_TABS.has(manager) ? manager : "",
-      team: manager.endsWith("팀") ? manager : "",
       source:"sheet"
     };
     // 담당자 탭에 실려 있는 승강기는 그 사람 담당이 확실 - 전체 현장의 옛 담당(퇴사자 등)보다 우선
-    if(isPersonTab){ s.assignee=tab.name.trim(); s._assigneeOv=true; }
-    if(isRegionTab){ s.team=tab.name.trim(); s._teamOv=true; } // 지역 탭 현장은 "동탄팀" 대신 지역명으로 구분
+    if(isOwnerTab){ s.assignee=tab.name.trim(); s._assigneeOv=true; }
     // 점검기록용 아이디(ckey): 진짜 번호가 있으면 번호, 없으면(빈칸·X·없음·- 등) 건물명#순서
     if(/\d/.test(elevNo)){
       s._occ=0; s.ckey=elevNo;
@@ -857,7 +857,7 @@ function parseTab(tab){
 
 /* 여러 탭 병합: 승강기번호(없으면 건물명+주소) 기준으로 중복 제거.
    "전체 현장" 탭을 기준으로 삼고, 담당자/지역 탭에만 있는 값(연락처 등)으로 빈 칸을 채움. */
-const MERGE_FIELDS=["name","addr","check","access","type","month","contract","memo","owner","emergency","assignee","team"];
+const MERGE_FIELDS=["name","addr","check","access","type","month","contract","memo","owner","emergency","assignee"];
 function siteMergeKey(s){
   // 진짜 번호(숫자 포함)만 번호로 병합. "X"·"없음"·"-"·빈칸은 건물명+주소+순서로 각각 유지
   if(/\d/.test(s.elevNo||"")) return "N:"+normNo(s.elevNo);
@@ -879,7 +879,6 @@ function mergeTabs(tabDatas){
       const ex=map.get(k);
       if(!ex){ map.set(k,s); continue; }
       for(const f of MERGE_FIELDS){ if(!ex[f] && s[f]) ex[f]=s[f]; }
-      if(s._teamOv) ex.team=s.team; // 지역 탭의 지역명이 "동탄팀"보다 우선
       if(s._assigneeOv) ex.assignee=s.assignee; // 담당자 탭 소속이 전체 현장 담당 칸보다 우선
     }
   }
@@ -912,7 +911,7 @@ async function loadSheets(){
       const j=await res.json();
       if(j.error) throw new Error(j.error);
       const tabs=(j.tabs||[]).filter(t=>!EXCLUDE_TAB.test(t.name));
-      PERSON_TABS=new Set(tabs.map(t=>t.name.trim()).filter(n=>!/현장|전체/.test(n)));
+      PERSON_TABS=new Set(tabs.map(t=>t.name.trim()).filter(n=>!/^전체/.test(n)));
       SITES=mergeTabs(tabs);
       pruneAddedSites();   // 시트에 반영된 추가 현장을 폰에서 정리 (대수를 찍기 전에)
       applyServerChecks(j.checks);   // ||{} 를 뺌 - 아래 함수가 '못 받음'과 '빈 값'을 구분해야 함
@@ -934,7 +933,7 @@ async function loadSheets(){
       const ok=results.filter(r=>r.status==="fulfilled").map(r=>r.value);
       const fail=results.length-ok.length;
       if(!ok.length) throw new Error("모든 탭 로드 실패");
-      PERSON_TABS=new Set(tabs.map(t=>t.name.trim()).filter(n=>!/현장|전체/.test(n)));
+      PERSON_TABS=new Set(tabs.map(t=>t.name.trim()).filter(n=>!/^전체/.test(n)));
       SITES=mergeTabs(ok);
       pruneAddedSites();
       st.textContent=`현장 ${SITES.length+addedSites.length}건 로드됨 (탭 ${ok.length}/${tabs.length}${fail?` · 실패 ${fail}`:""})`;
@@ -1091,19 +1090,13 @@ function getAllSites(){
 function buildAssigneeFilter(){
   const all=getAllSites();
   const ko=(a,b)=>a.localeCompare(b,"ko");
-  const asg=[...new Set(all.map(s=>s.assignee).filter(Boolean))].sort(ko);
-  const teams=[...new Set(all.map(s=>s.team).filter(Boolean))].sort(ko);
-  const cnt=(f,v)=>all.filter(s=>s[f]===v).length;
+  // 사람과 지역을 한 목록으로 (팀 개념 없이 '담당' 하나로 통일)
+  const asg=[...new Set([...PERSON_TABS, ...all.map(s=>s.assignee)].filter(Boolean))].sort(ko);
+  const cnt=v=>all.filter(s=>s.assignee===v).length;
   const el=document.getElementById("whoFilter");
-  el.innerHTML='<option value="">담당자 · 팀 전체</option>'
-    + (asg.length?`<optgroup label="담당자">`
-        + asg.map(a=>`<option value="p:${esc(a)}">${esc(a)} (${cnt("assignee",a)}대)</option>`).join("")
-        + `</optgroup>`:"")
-    + (teams.length?`<optgroup label="팀 · 지역">`
-        + teams.map(t=>`<option value="t:${esc(t)}">${esc(t)} (${cnt("team",t)}대)</option>`).join("")
-        + `</optgroup>`:"");
-  el.value = filterState.assignee ? "p:"+filterState.assignee
-           : filterState.team ? "t:"+filterState.team : "";
+  el.innerHTML='<option value="">담당 전체</option>'
+    + asg.map(a=>`<option value="${esc(a)}">${esc(a)} (${cnt(a)}대)</option>`).join("");
+  el.value = filterState.assignee || "";
 }
 
 /* ---------- 같은 주소 묶기 ---------- */
@@ -1113,7 +1106,7 @@ function groupByBuilding(sites){
     // 건물명+주소가 '사실상' 같으면 한 현장으로 묶는다.
     // 글자를 그대로 비교하면 끝 공백·괄호·대소문자 차이만으로 같은 건물이 쪼개진다.
     const key=normText(s.name)+"|"+normText(s.addr);
-    if(!map.has(key)) map.set(key,{name:s.name,addr:s.addr,assignee:s.assignee,team:s.team,memo:s.memo,elevs:[]});
+    if(!map.has(key)) map.set(key,{name:s.name,addr:s.addr,assignee:s.assignee,memo:s.memo,elevs:[]});
     map.get(key).elevs.push(s);
   }
   return [...map.values()];
@@ -1123,7 +1116,6 @@ function groupByBuilding(sites){
 function applyFilters(sites){
   let out=sites;
   if(filterState.assignee) out=out.filter(s=>s.assignee===filterState.assignee);
-  if(filterState.team) out=out.filter(s=>s.team===filterState.team);
   if(filterState.search){
     const q=normText(filterState.search);
     const qNo=normNo(filterState.search);
@@ -1347,8 +1339,7 @@ function sortGroups(groups){
 }
 
 function renderStats(all){
-  const scope = filterState.assignee ? all.filter(s=>s.assignee===filterState.assignee)
-              : filterState.team ? all.filter(s=>s.team===filterState.team) : all;
+  const scope = filterState.assignee ? all.filter(s=>s.assignee===filterState.assignee) : all;
   const total=scope.length;
   const done=scope.filter(s=>isDone(s.ckey)).length;
   const pct= total? Math.round(done/total*100):0;
@@ -1419,7 +1410,7 @@ function renderWarnBanner(all){
 
 function badgeMonth(m){ return m? `<span class="badge month">${esc(m)}</span>`:""; }
 function badgeFM(memo){ return /FM/.test(memo||"")? `<span class="badge fm">FM</span>`:""; }
-function badgeTeam(t){ return t? `<span class="badge team">${esc(t)}</span>`:""; }
+function badgeOwner(t){ return t? `<span class="badge team">${esc(t)}</span>`:""; }
 
 function renderGroup(g){
   const elevRows=g.elevs.map(s=>{
@@ -1457,7 +1448,7 @@ function renderGroup(g){
     <div class="site-card ${allDone?'done':''}">
       <div class="site-head">
         <div>
-          <div class="site-name" data-act="qr" data-no="${esc(firstNo)}">${esc(g.name)||"(이름없음)"} ${badgeFM(g.memo)}${filterState.team?"":badgeTeam(g.team)}</div>
+          <div class="site-name" data-act="qr" data-no="${esc(firstNo)}">${esc(g.name)||"(이름없음)"} ${badgeFM(g.memo)}${filterState.assignee?"":badgeOwner(g.assignee)}</div>
           <div class="site-addr" data-act="map" data-addr="${encodeURIComponent(g.addr)}">${esc(g.addr)||""}</div>
           ${sub.length?`<div class="check-note">${esc(sub.join(" · "))}</div>`:""}
         </div>
@@ -1665,8 +1656,8 @@ function openSiteModal(key){
   const cur = key ? sitesAll.find(x=>x._key===key) : null;
   // 담당자 목록은 시트 하단의 담당자 탭 이름을 기준으로 한다.
   // 현재 맡은 현장이 하나도 없는 직원(신입·복귀 등)도 고를 수 있어야 하기 때문.
-  fillPicker("f_assignee", [...PERSON_TABS, ...sitesAll.map(x=>x.assignee)], cur?cur.assignee:"", "담당자 선택");
-  fillPicker("f_team", sitesAll.map(x=>x.team), cur?cur.team:"", "팀·지역 없음");
+  // 담당 목록 = 시트 탭 이름 전부 (사람 + 지역). 맡은 현장이 없는 직원도 고를 수 있다.
+  fillPicker("f_assignee", [...PERSON_TABS, ...sitesAll.map(x=>x.assignee)], cur?cur.assignee:"", "담당 선택");
   if(key){
     const all=sitesAll;
     const s=cur;
@@ -1676,17 +1667,16 @@ function openSiteModal(key){
     title.textContent="현장 정보 수정";
     setField("f_elevno",s.elevNo);setField("f_name",s.name);setField("f_addr",s.addr);
     setField("f_type",s.type);setField("f_month",s.month);setField("f_assignee",s.assignee);
-    setField("f_team",s.team);setField("f_access",s.access);setField("f_check",s.check);
+    setField("f_access",s.access);setField("f_check",s.check);
     setField("f_memo",s.memo);setField("f_owner",s.owner);setField("f_emergency",s.emergency);
     // 내가 추가한 현장만 삭제 버튼 노출
     delRow.style.display = s.source==="added" ? "flex":"none";
   }else{
     note.textContent="이 현장 전체에 함께 적용";
     title.textContent="현장 추가";
-    ["f_elevno","f_name","f_addr","f_type","f_month","f_assignee","f_team","f_access","f_check","f_memo","f_owner","f_emergency"].forEach(id=>setField(id,""));
+    ["f_elevno","f_name","f_addr","f_type","f_month","f_assignee","f_access","f_check","f_memo","f_owner","f_emergency"].forEach(id=>setField(id,""));
     // 지금 보고 있는 담당자·팀을 미리 넣어줌 - 추가하면 바로 그 사람 목록으로 들어간다
     if(filterState.assignee) setField("f_assignee", filterState.assignee);
-    if(filterState.team) setField("f_team", filterState.team);
     delRow.style.display="none";
   }
   openModalById("siteModal");
@@ -1708,24 +1698,24 @@ function saveSite(){
   const data={
     elevNo:getField("f_elevno"), name:getField("f_name"), addr:getField("f_addr"),
     type:getField("f_type"), month:getField("f_month"), assignee:getField("f_assignee"),
-    team:getField("f_team"), access:getField("f_access"), check:getField("f_check"),
+    access:getField("f_access"), check:getField("f_check"),
     memo:getField("f_memo"), owner:getField("f_owner"), emergency:getField("f_emergency")
   };
   if(!data.name && !data.elevNo){ toast("건물명 또는 승강기번호를 입력하세요"); return; }
   // 담당자가 없으면 담당자별 목록에 안 나와서 아무도 못 본다 - 한 번 확인
-  if(!editingKey && !data.assignee && !data.team){
-    if(!confirm("담당자를 지정하지 않으면 담당자별 목록에 나오지 않습니다.\n그래도 저장할까요?")) return;
+  if(!editingKey && !data.assignee){
+    if(!confirm("담당을 지정하지 않으면 담당별 목록에 나오지 않습니다.\n그래도 저장할까요?")) return;
   }
   // 현장 공통 정보(주소·담당·출입·연락처·체크사항·비고)는 같은 현장 모든 호기에 적용,
   // 호기 정보(번호·기종·검사월·비상통화)는 이 호기에만 적용
-  const SITE_F=["name","addr","assignee","team","access","owner","check","memo"];
+  const SITE_F=["name","addr","assignee","access","owner","check","memo"];
   let newKey="";   // 새로 추가한 현장의 점검기록 아이디 (정보센터 미등록 목록 키)
   const before = editingKey ? getAllSites().find(x=>x._key===editingKey) : null;
   // 담당자·팀이 실제로 바뀐 경우에만 같은 현장의 다른 호기까지 서버로 보낸다.
   // 서버는 승강기 한 대씩만 담당자 탭을 옮기기 때문에, 호기마다 보내지 않으면
   // 나머지 호기가 옛 담당자 탭에 남고 다음날 새벽 동기화 때 담당이 되돌아간다.
   const whoChanged = !!before &&
-    ((before.assignee||"") !== data.assignee || (before.team||"") !== data.team);
+    ((before.assignee||"") !== data.assignee);
   const sibs=[];   // 같이 옮겨야 할 같은 현장의 다른 호기
   if(editingKey){
     edits[editingKey]={...(edits[editingKey]||{}), ...data};
@@ -1747,7 +1737,7 @@ function saveSite(){
     newKey = /\d/.test(data.elevNo||"") ? data.elevNo : "A:"+data.id;
     newsites[newKey]={
       name:data.name, addr:data.addr, elevNo:data.elevNo,
-      assignee:data.assignee, team:data.team,
+      assignee:data.assignee,
       addedAt:todayStr(), addedBy:getUserName()
     };
     saveNewsites();
@@ -1757,7 +1747,7 @@ function saveSite(){
     // 공통 정보는 새 값으로, 호기별 정보(번호·기종·검사월·비상통화)는 그 호기 것 그대로
     const payload=(o,isNewOne)=>({token:APP_TOKEN, type:"site",
       elevNo:o.elevNo, name:data.name, addr:data.addr, kind:o.type, month:o.month,
-      assignee:data.assignee, team:data.team, access:data.access, check:data.check, memo:data.memo,
+      assignee:data.assignee, access:data.access, check:data.check, memo:data.memo,
       owner:data.owner, emergency:o.emergency,
       // 새로 추가한 현장이면 서버가 '앱_신규현장' 탭에도 한 줄 남긴다
       isNew: !!isNewOne, ckey: isNewOne? newKey : "", user: getUserName()});
@@ -1900,9 +1890,7 @@ function closeModal(id){ document.getElementById(id).classList.remove("open"); }
 
 /* ---------- 이벤트 바인딩 ---------- */
 document.getElementById("whoFilter").onchange=e=>{
-  const v=e.target.value;               // "p:이름" = 담당자, "t:이름" = 팀·지역
-  filterState.assignee = v.slice(0,2)==="p:" ? v.slice(2) : "";
-  filterState.team     = v.slice(0,2)==="t:" ? v.slice(2) : "";
+  filterState.assignee = e.target.value;   // 사람·지역 구분 없이 담당 하나
   render();
 };
 const VIEW_ORDER=["card","list","cal"];
