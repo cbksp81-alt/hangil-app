@@ -1284,8 +1284,9 @@ function renderCalRow(e){
          ${b.who?` · 검사자 ${esc(b.who)}`:""}
          <span class="st-tag ${/확정/.test(b.conf||"")?"st-checked":"st-planned"}">${esc(b.conf)||"예정"}</span>
          ${b.org?`<div class="bk-org">${esc(b.org)}</div>`:""}</div>`
-    : `<div style="margin-top:3px;"><span class="st-tag st-${st}">${STATE_LABEL[st]||""}</span>${
-         needsBooking(s)?` <span class="st-tag st-overdue">검사 미신청</span>`:""}</div>`;
+    : (needsBooking(s)
+        ? `<div style="margin-top:3px;"><span class="st-tag st-${st}">${STATE_LABEL[st]||""}</span> <span class="st-tag st-overdue">검사 미신청</span></div>`
+        : "");
   return `
     <div class="list-row ${done?'done':''}">
       <div class="lr-main">
@@ -1301,12 +1302,12 @@ function renderCalRow(e){
 /* ---------- 리스트 보기 (한 줄 요약) ---------- */
 function renderListRow(s){
   const done=isDone(s.ckey);
-  // 검사유효기간은 달력에서 뺐으므로 목록에서 본다. 급한 것(임박·만료)만 표시해 화면을 어지럽히지 않는다.
+  // 검사가 이미 잡혀 있으면 "만료·임박" 같은 경고는 띄우지 않는다.
+  // 잡혀 있는데 경고까지 같이 뜨면 볼 게 많아지고 급한 현장이 묻힌다.
+  // 검사 시간·검사자는 달력(📅 검사일정)과 상세창에서 확인한다.
   const st=inspState(s);
-  const stTag = (st==="soon"||st==="overdue")
-    ? `<span class="st-tag st-${st}">${STATE_LABEL[st]}</span>`
-      + (bookingsFor(s).length ? ` <span class="st-tag st-checked">검사 잡힘</span>`
-                               : ` <span class="st-tag st-overdue">미신청</span>`)
+  const stTag = ((st==="soon"||st==="overdue") && !bookingsFor(s).length)
+    ? `<span class="st-tag st-${st}">${STATE_LABEL[st]}</span> <span class="st-tag st-overdue">미신청</span>`
     : "";
   const c=getCheck(s.ckey);
   const note=notes[s.ckey]&&notes[s.ckey].text;
