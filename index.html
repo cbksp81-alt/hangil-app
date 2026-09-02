@@ -1110,7 +1110,9 @@ function buildAssigneeFilter(){
 function groupByBuilding(sites){
   const map=new Map();
   for(const s of sites){
-    const key=(s.name||"")+"|"+(s.addr||"");
+    // 건물명+주소가 '사실상' 같으면 한 현장으로 묶는다.
+    // 글자를 그대로 비교하면 끝 공백·괄호·대소문자 차이만으로 같은 건물이 쪼개진다.
+    const key=normText(s.name)+"|"+normText(s.addr);
     if(!map.has(key)) map.set(key,{name:s.name,addr:s.addr,assignee:s.assignee,team:s.team,memo:s.memo,elevs:[]});
     map.get(key).elevs.push(s);
   }
