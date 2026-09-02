@@ -134,11 +134,12 @@
   .bigcheck{display:flex;align-items:center;gap:10px;padding:12px;border:2px solid var(--line);border-radius:10px;margin:6px 0 12px;font-weight:700;cursor:pointer;font-size:1.05em;}
   .bigcheck input{width:26px;height:26px;}
   .mapbtn{width:100%;margin-top:8px;padding:13px;}
-  .map-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px;}
+  .map-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px;}
   .map-sq{aspect-ratio:1;border:none;border-radius:16px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;font-size:.92em;cursor:pointer;}
   .map-sq .ic{font-size:2em;}
   .map-sq.kakao{background:#FEE500;color:#191919;}
   .map-sq.naver{background:#03C75A;color:#fff;}
+  .map-sq.tmap{background:#4B2EF5;color:#fff;}
   .map-sq.google{background:#fff;color:#1a73e8;border:2px solid #dadce0;}
   html[data-theme=dark] .map-sq.google{background:#e8eaed;}
   #specResult{font-size:1.05em;line-height:1.85;}
@@ -183,6 +184,10 @@
   .st-soon{background:#ffedd5;color:#c2410c;}
   .st-overdue{background:#fbe6e3;color:#b91c1c;}
   .st-checked{background:#e3f3e8;color:#15803d;}
+  .bk-badge{background:#ede9fe;color:#6d28d9;font-weight:700;padding:2px 8px;border-radius:8px;font-size:.74em;white-space:nowrap;}
+  .bk-badge.fix{background:#ddd6fe;color:#4c1d95;}
+  html[data-theme=dark] .bk-badge{background:#312e81;color:#c4b5fd;}
+  html[data-theme=dark] .bk-badge.fix{background:#4338ca;color:#e0e7ff;}
   html[data-theme=dark] .cal-day .dcnt.soon{background:#3a2408;color:#fdba74;}
   .cal-day.past{background:#faf7f4;}
   .cal-day.wk{opacity:.55;}
@@ -531,6 +536,7 @@
     <div class="map-grid">
       <button class="map-sq kakao" id="mapKakao"><span class="ic">🗺️</span>카카오맵</button>
       <button class="map-sq naver" id="mapNaver"><span class="ic">🧭</span>네이버지도</button>
+      <button class="map-sq tmap" id="mapTmap"><span class="ic">🚗</span>티맵</button>
       <button class="map-sq google" id="mapGoogle"><span class="ic">📍</span>구글지도</button>
     </div>
     <button class="btn secondary mapbtn" id="mapCancel">취소</button>
@@ -716,6 +722,27 @@ const STATE_LABEL={planned:"검사 예정", soon:"만료 임박", overdue:"만�
 
 /* 이 승강기에 잡혀 있는 검사 일정 (정보센터에서 가져온 것) */
 function bookingsFor(s){ return books[digits(s.elevNo)] || []; }
+/* 오늘 이후 일정 중 가장 가까운 것. 지난 일정만 있으면 null */
+function nextBooking(s){
+  const t=todayStr();
+  const up=bookingsFor(s).filter(b=>b.date&&b.date>=t)
+    .sort((a,b)=>((a.date+(a.time||""))<(b.date+(b.time||""))?-1:1));
+  return up[0]||null;
+}
+/* 검사 시간. 정보센터에서 ":" 처럼 빈 값이 오기도 해서 숫자 없는 시간은 빈 것으로 본다 */
+function bkTime(b){
+  const t=(b&&b.time||"").trim();
+  return /\d/.test(t) ? t : "";
+}
+/* 목록·카드에 붙이는 검사일정 배지: "🗓 9/15(화) 10:00" — 시간이 없으면 날짜만 */
+function bookingBadge(s){
+  const b=nextBooking(s);
+  if(!b) return "";
+  const dw="일월화수목금토"[new Date(b.date+"T00:00:00").getDay()];
+  const time=bkTime(b);
+  const label=(+b.date.slice(5,7))+"/"+(+b.date.slice(8,10))+"("+dw+")"+(time?" "+time:"");
+  return `<span class="bk-badge${/확정/.test(b.conf||"")?" fix":""}">🗓 ${esc(label)}</span>`;
+}
 /* 검사를 받아야 하는데(임박·만료) 아직 검사 신청이 안 된 현장 - 제일 급한 것 */
 function needsBooking(s){
   const st=inspState(s);
@@ -1280,7 +1307,7 @@ function renderCalRow(e){
   const done=isDone(s.ckey);
   const st=inspState(s);
   const info = b
-    ? `<div class="bk-line">🗓 <b>${esc(b.time)||"시간 미정"}</b> · ${esc(b.kind)||"검사"}
+    ? `<div class="bk-line">🗓 <b>${esc(bkTime(b))||"시간 미정"}</b> · ${esc(b.kind)||"검사"}
          ${b.who?` · 검사자 ${esc(b.who)}`:""}
          <span class="st-tag ${/확정/.test(b.conf||"")?"st-checked":"st-planned"}">${esc(b.conf)||"예정"}</span>
          ${b.org?`<div class="bk-org">${esc(b.org)}</div>`:""}</div>`
@@ -1308,7 +1335,7 @@ function renderListRow(s){
   const st=inspState(s);
   const stTag = ((st==="soon"||st==="overdue") && !bookingsFor(s).length)
     ? `<span class="st-tag st-${st}">${STATE_LABEL[st]}</span> <span class="st-tag st-overdue">미신청</span>`
-    : "";
+    : bookingBadge(s); // 검사가 잡혀 있으면 경고 대신 날짜·시간을 보여준다
   const c=getCheck(s.ckey);
   const note=notes[s.ckey]&&notes[s.ckey].text;
   const reg=isRegistered(s);
@@ -1426,6 +1453,7 @@ function renderGroup(g){
       <div class="elev-row ${done?'done':''}">
         <span class="elev-no" data-act="qr" data-no="${esc(s.elevNo)}">${esc(s.elevNo)||"(번호없음)"}</span>
         ${s.month?`<span class="m-badge">${esc(s.month)}</span>`:""}
+        ${bookingBadge(s)}
         ${reg?`<span class="reg-badge">등록✔</span>`:""}
         ${isNewUnreg(s)?`<span class="new-badge">신규·미등록</span>`:""}
         ${bad?`<span class="delay-badge" data-act="detail" data-key="${s._key}" style="cursor:pointer">${esc(v2.result)}</span>`:""}
@@ -1542,6 +1570,12 @@ function openMap(addr){
 }
 function goMap(kind){
   const q=encodeURIComponent(mapAddrCur);
+  if(kind==="tmap"){
+    // 티맵은 웹 지도가 없어 앱 스킴으로 직접 연다. 앱이 안 깔려 있으면 반응이 없다.
+    location.href="tmap://search?name="+q;
+    closeModal("mapModal");
+    return;
+  }
   const urls={
     kakao:"https://map.kakao.com/?q="+q,
     naver:"https://map.naver.com/v5/search/"+q,
@@ -1583,7 +1617,7 @@ function openDetail(key){
     </div></div>
     ${(()=>{const bs=bookingsFor(s); if(!bs.length) return "";
         return `<div class="field"><label>잡혀 있는 검사</label><div>`+bs.map(b=>
-          `🗓 <b>${esc(b.date)} ${esc(b.time)}</b> · ${esc(b.kind)||"검사"}${b.who?` · 검사자 ${esc(b.who)}`:""}
+          `🗓 <b>${esc(b.date)}${bkTime(b)?" "+esc(bkTime(b)):""}</b> · ${esc(b.kind)||"검사"}${b.who?` · 검사자 ${esc(b.who)}`:""}
            <span class="st-tag ${/확정/.test(b.conf||"")?"st-checked":"st-planned"}">${esc(b.conf)||"예정"}</span>
            ${b.org?`<br><span style="color:var(--muted);font-size:.9em">${esc(b.org)}</span>`:""}`).join("<hr style='border:0;border-top:1px solid var(--line);margin:6px 0'>")+`</div></div>`;})()}
     <div class="field"><label>주소</label><div>${esc(s.addr)||"-"}</div></div>
@@ -1988,6 +2022,7 @@ document.getElementById("ckCancel").onclick=()=>closeModal("checkModal");
 document.getElementById("ckSave").onclick=saveCheckModal;
 document.getElementById("mapKakao").onclick=()=>goMap("kakao");
 document.getElementById("mapNaver").onclick=()=>goMap("naver");
+document.getElementById("mapTmap").onclick=()=>goMap("tmap");
 document.getElementById("mapGoogle").onclick=()=>goMap("google");
 document.getElementById("mapCancel").onclick=()=>closeModal("mapModal");
 document.getElementById("monthCancel").onclick=()=>closeModal("monthModal");
