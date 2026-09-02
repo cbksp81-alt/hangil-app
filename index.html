@@ -432,7 +432,6 @@
     <div class="field"><label>담당자</label><select id="f_assignee"></select></div>
     <div class="field"><label>출입 정보 (현관·키 등)</label><input type="text" id="f_access" placeholder="예: 현관 4533"></div>
     <div class="field"><label>건물주 연락처</label><input type="text" id="f_owner" placeholder="예: 010-0000-0000"></div>
-    <div class="field"><label>체크사항</label><input type="text" id="f_check" placeholder="현장 전체에 해당하는 내용"></div>
     <div class="field"><label>비고</label><input type="text" id="f_memo" placeholder="예: FM현장 / 신규"></div>
 
     <div class="sec-head">이 호기만의 정보 <span class="sec-note">이 승강기 한 대에만 적용</span></div>
@@ -441,7 +440,7 @@
     <div class="field"><label>비상통화장치</label><input type="text" id="f_emergency" placeholder="이 승강기의 비상통화 번호"></div>
 
     <div class="placeholder-box">
-      승강기별 <b>특이사항</b>은 목록에서 체크박스를 눌러 나오는 점검 창에 적으시면 호기마다 따로 저장됩니다.
+      승강기별 <b>체크사항</b>은 목록에서 체크박스를 눌러 나오는 점검 창에 적으시면 호기마다 따로 저장되고, 시트의 체크사항 칸과 같이 움직입니다.
     </div>
 
     <div class="modal-actions">
@@ -476,7 +475,7 @@
     <div class="field"><label>승강기번호</label><div id="ck_no" style="font-weight:700;color:var(--primary);"></div></div>
     <label class="bigcheck"><input type="checkbox" id="ck_done"> 점검 완료</label>
     <div class="field"><label>점검일</label><input type="date" id="ck_date"></div>
-    <div class="field"><label>특이사항 (지우기 전까지 계속 유지됩니다)</label>
+    <div class="field"><label>체크사항 (시트의 체크사항 칸과 같이 움직입니다)</label>
       <textarea id="ck_note" placeholder="예: 도어 소음 있음 / 부품 교체 필요"></textarea></div>
     <div class="modal-actions">
       <button class="btn secondary" id="ckCancel">취소</button>
@@ -1611,7 +1610,7 @@ function openDetail(key){
     ${bad?`<div class="cond-box">⚠ <b>${esc(v2.result)}</b> — ${v2.date||"-"} ${esc(v2.kind||"")}<br>
       지적사항 세부내용은 국가승강기정보센터 페이지에서 확인할 수 있어요.<br>
       <button class="btn sm danger" id="condQR" style="margin-top:6px;">정보센터에서 자세히 보기</button>
-      <div style="margin-top:6px;font-size:.88em;">확인한 조건부 내용은 점검 체크창의 <b>특이사항</b>에 적어두면 전 직원과 공유됩니다.</div>
+      <div style="margin-top:6px;font-size:.88em;">확인한 조건부 내용은 점검 체크창의 <b>체크사항</b>에 적어두면 전 직원·시트와 공유됩니다.</div>
     </div>`:""}
     <div class="field"><label>승강기 기본정보</label><div id="basicInfo">
       기종: <b>${esc((iv&&iv.kind)||s.type||"-")}</b><br>
@@ -1627,7 +1626,7 @@ function openDetail(key){
     <div class="field"><label>주소</label><div>${esc(s.addr)||"-"}</div></div>
     <div class="field"><label>출입정보</label><div>${esc(s.access)||"-"}</div></div>
     <div class="field"><label>비상통화장치</label><div>${esc(s.emergency)||"-"}</div></div>
-    <div class="field"><label>특이사항 (앱 기록)</label><div>${esc((notes[s.ckey]&&notes[s.ckey].text)||"")||"-"}</div></div>
+    <div class="field"><label>체크사항</label><div>${esc((notes[s.ckey]&&notes[s.ckey].text)||"")||"-"}</div></div>
     <div class="field"><label>점검 상태</label>
       <div>${isDone(s.ckey)?"✅ 완료 ("+(c.date||"")+(c.user?(" · "+c.user):"")+")":"⬜ 미점검"}</div></div>
     <div class="modal-actions" style="margin-top:10px;">
@@ -1706,14 +1705,14 @@ function openSiteModal(key){
     title.textContent="현장 정보 수정";
     setField("f_elevno",s.elevNo);setField("f_name",s.name);setField("f_addr",s.addr);
     setField("f_type",s.type);setField("f_month",s.month);setField("f_assignee",s.assignee);
-    setField("f_access",s.access);setField("f_check",s.check);
+    setField("f_access",s.access);
     setField("f_memo",s.memo);setField("f_owner",s.owner);setField("f_emergency",s.emergency);
     // 내가 추가한 현장만 삭제 버튼 노출
     delRow.style.display = s.source==="added" ? "flex":"none";
   }else{
     note.textContent="이 현장 전체에 함께 적용";
     title.textContent="현장 추가";
-    ["f_elevno","f_name","f_addr","f_type","f_month","f_assignee","f_access","f_check","f_memo","f_owner","f_emergency"].forEach(id=>setField(id,""));
+    ["f_elevno","f_name","f_addr","f_type","f_month","f_assignee","f_access","f_memo","f_owner","f_emergency"].forEach(id=>setField(id,""));
     // 지금 보고 있는 담당자·팀을 미리 넣어줌 - 추가하면 바로 그 사람 목록으로 들어간다
     if(filterState.assignee) setField("f_assignee", filterState.assignee);
     delRow.style.display="none";
@@ -1737,7 +1736,7 @@ function saveSite(){
   const data={
     elevNo:getField("f_elevno"), name:getField("f_name"), addr:getField("f_addr"),
     type:getField("f_type"), month:getField("f_month"), assignee:getField("f_assignee"),
-    access:getField("f_access"), check:getField("f_check"),
+    access:getField("f_access"), check:"", // 체크사항은 점검 창에서 호기별로 적는다 (시트 칸과 직결)
     memo:getField("f_memo"), owner:getField("f_owner"), emergency:getField("f_emergency")
   };
   if(!data.name && !data.elevNo){ toast("건물명 또는 승강기번호를 입력하세요"); return; }
@@ -1758,9 +1757,10 @@ function saveSite(){
   if(!editingKey && !data.assignee){
     if(!confirm("담당을 지정하지 않으면 담당별 목록에 나오지 않습니다.\n그래도 저장할까요?")) return;
   }
-  // 현장 공통 정보(주소·담당·출입·연락처·체크사항·비고)는 같은 현장 모든 호기에 적용,
+  // 현장 공통 정보(주소·담당·출입·연락처·비고)는 같은 현장 모든 호기에 적용,
   // 호기 정보(번호·기종·검사월·비상통화)는 이 호기에만 적용
-  const SITE_F=["name","addr","assignee","access","owner","check","memo"];
+  // 체크사항은 여기서 다루지 않는다 - 점검 창에서 호기별로 적고 시트 칸과 직결된다
+  const SITE_F=["name","addr","assignee","access","owner","memo"];
   let newKey="";   // 새로 추가한 현장의 점검기록 아이디 (정보센터 미등록 목록 키)
   const before = editingKey ? getAllSites().find(x=>x._key===editingKey) : null;
   // 담당자·팀이 실제로 바뀐 경우에만 같은 현장의 다른 호기까지 서버로 보낸다.
