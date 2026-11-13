@@ -452,8 +452,34 @@
     </div>
     <div id="invList"><div class="loading">자재 목록을 불러오는 중입니다...</div></div>
     <div class="modal-actions">
+      <button class="btn ghost" id="invNewBtn">+ 새 자재 등록</button>
       <button class="btn secondary" id="invRefresh">새로고침</button>
       <button class="btn secondary" id="invClose">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 새 자재 등록 모달 (목록에 없는 부품이 처음 들어왔을 때) -->
+<div class="modal-back" id="invNewModal">
+  <div class="modal">
+    <h3>새 자재 등록</h3>
+    <div class="inv-who">기록자 <b id="invNewUser">-</b></div>
+    <div class="field"><label>구분 (제조사·분류)</label><input type="text" id="invNew_sec" list="invSecList" placeholder="예: 현대 / 오티스 / 중소 / 전기소모품"></div>
+    <datalist id="invSecList"></datalist>
+    <div class="inv-kind" id="invNewSub">
+      <button class="btn" data-s="일반">일반 부품</button>
+      <button class="btn secondary" data-s="인버터">인버터</button>
+    </div>
+    <div class="field"><label>품명 (필수)</label><input type="text" id="invNew_name" placeholder="예: HIP 보드"></div>
+    <div class="field"><label>규격 · 모델</label><input type="text" id="invNew_spec" placeholder="예: STVF용 / 12V 7A"></div>
+    <div class="sec-head">첫 입고 <span class="sec-note">0으로 두면 등록만 합니다</span></div>
+    <div class="field"><label>입고 수량</label><input type="number" id="invNew_q" min="0" step="any" inputmode="decimal" value="1"></div>
+    <div class="field"><label>날짜</label><input type="date" id="invNew_date"></div>
+    <div class="field"><label>거래처 · 현장</label><input type="text" id="invNew_site" list="invSiteList" placeholder="예: 오토닉스 대리점 / 반납 현장"></div>
+    <div class="field"><label>메모</label><input type="text" id="invNew_memo" placeholder="예: 신규 매입 / 반납 / 수리입고"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" id="invNewCancel">취소</button>
+      <button class="btn" id="invNewSave">등록하기</button>
     </div>
   </div>
 </div>
@@ -1155,7 +1181,7 @@ async function flushPending(){
         continue;
       }
       pendingQueue.shift(); savePending();
-      if(p.type==="invtx") invApplySent(p);   // 보낸 입출고를 폰의 재고 목록에도 반영
+      if(p.type==="invtx" || p.type==="invitem") invApplySent(p, j);   // 보낸 입출고·새 자재를 폰의 재고 목록에도 반영
     }
   }catch(e){
     console.warn("점검기록 동기화 대기:",e);
@@ -1194,8 +1220,10 @@ function setInvView(v){
 }
 /* 입출고 내역: 서버의 최근 기록 + 아직 못 보낸 내 기록, 최신순 */
 function renderInvHist(box, words, sec){
-  const pend=pendingQueue.filter(p=>p.type==="invtx")
-    .map(p=>({d:p.date,k:p.kind,c:p.code,q:p.q,site:p.site,u:p.user,m:p.memo,pend:true}));
+  const pend=pendingQueue.filter(p=>p.type==="invtx" || (p.type==="invitem" && Number(p.q)>0))
+    .map(p=>p.type==="invitem"
+      ? {d:p.date,k:"입고",c:"NEW-"+p.id,q:p.q,site:p.site,u:p.user,m:["새 자재 등록",p.memo].filter(Boolean).join(" · "),pend:true}
+      : {d:p.date,k:p.kind,c:p.code,q:p.q,site:p.site,u:p.user,m:p.memo,pend:true});
   // 날짜 최신순 (같은 날이면 시트 아래쪽 = 나중 기록이 위로). 아직 못 보낸 내 기록은 맨 위
   const all=((inv&&inv.recent)||[]).map((r,i)=>({...r,_i:i}))
     .sort((a,b)=>(b.d||"").localeCompare(a.d||"") || b._i-a._i);
@@ -1220,11 +1248,22 @@ function renderInvHist(box, words, sec){
 }
 function invPendingDelta(code){
   let d=0;
-  for(const p of pendingQueue) if(p.type==="invtx" && p.code===code) d+=(p.kind==="입고"?1:-1)*Number(p.q||0);
+  for(const p of pendingQueue){
+    if(p.type==="invtx" && p.code===code) d+=(p.kind==="입고"?1:-1)*Number(p.q||0);
+    else if(p.type==="invitem" && "NEW-"+p.id===code) d+=Number(p.q||0);
+  }
   return d;
 }
 function invRound(x){ return Math.round(x*100)/100; }
-function invItem(code){ return inv&&inv.items ? inv.items.find(x=>x.c===code) : null; }
+/* 서버 목록 + 아직 못 보낸 새 자재(임시 코드 NEW-…) */
+function invAllItems(){
+  const base=(inv&&inv.items)||[];
+  const temp=pendingQueue.filter(p=>p.type==="invitem")
+    .map(p=>({c:"NEW-"+p.id, s:p.sec, g:p.sub, n:p.name, sp:p.spec||"", q:0, temp:true}));
+  return temp.concat(base);
+}
+function invItem(code){ return invAllItems().find(x=>x.c===code) || null; }
+function invNorm(s){ return String(s==null?"":s).replace(/\s+/g,"").toUpperCase(); }
 function invQty(it){ return invRound((Number(it.q)||0)+invPendingDelta(it.c)); }
 async function loadInv(){
   const st=document.getElementById("invStatus");
@@ -1257,20 +1296,25 @@ function renderInv(){
   const words=document.getElementById("inv_q").value.trim().split(/\s+/).filter(Boolean).map(normText);
   const sec=document.getElementById("inv_sec").value;
   if(invView==="hist") return renderInvHist(box, words, sec);
-  const all=inv.items.filter(it=>{
+  const all=invAllItems().filter(it=>{
     if(sec && it.s!==sec) return false;
     if(!words.length) return true;
     const hay=normText(`${it.s} ${it.n} ${it.sp} ${it.c} ${it.g}`);
     return words.every(w=>hay.includes(w));
   });
   const LIMIT=150, rows=all.slice(0,LIMIT);
-  if(!all.length){ box.innerHTML=`<div class="empty">찾는 자재가 없습니다</div>`; return; }
+  if(!all.length){
+    const qtext=document.getElementById("inv_q").value.trim();
+    box.innerHTML=`<div class="empty">찾는 자재가 없습니다${qtext?`<br><br><button class="btn ghost sm" id="invNewFromSearch">「${esc(qtext)}」 새 자재로 등록</button>`:""}</div>`;
+    const b=document.getElementById("invNewFromSearch"); if(b) b.onclick=()=>openInvNew(qtext);
+    return;
+  }
   box.innerHTML=rows.map(it=>{
     const qv=invQty(it), pend=invPendingDelta(it.c);
     return `<div class="inv-row${qv<=0?" zero":""}" data-c="${it.c}">
       <div class="inv-main">
         <div class="inv-name">${esc(it.n)}${it.sp?` <span class="inv-spec">${esc(it.sp)}</span>`:""}</div>
-        <div class="inv-sub">${esc(it.s)}${it.g==="인버터"?" · 인버터":""} · ${it.c}${pend?` · <span class="inv-pend">전송 대기 ${pend>0?"+":""}${invRound(pend)}</span>`:""}</div>
+        <div class="inv-sub">${esc(it.s)}${it.g==="인버터"?" · 인버터":""} · ${it.temp?`<span class="inv-pend">새 자재 · 등록 전송 대기</span>`:it.c}${pend&&!it.temp?` · <span class="inv-pend">전송 대기 ${pend>0?"+":""}${invRound(pend)}</span>`:""}</div>
       </div>
       <div class="inv-qty">${qv}</div>
     </div>`;
@@ -1290,6 +1334,7 @@ function setInvKind(k){
 }
 function openInvTx(code, keepForm){
   const it=invItem(code); if(!it) return;
+  if(it.temp){ toast("새 자재 등록이 아직 전송 대기 중입니다 — 연결된 뒤 기록하세요"); return; }
   invCur=code;
   document.getElementById("invTxTitle").textContent = it.n + (it.sp?" · "+it.sp:"");
   document.getElementById("invTxQty").textContent = invQty(it);
@@ -1334,12 +1379,84 @@ function saveInvTx(){
   flushPending();
 }
 /* 서버에 들어간 입출고를 폰에 저장된 목록에 바로 반영 (다음 새로고침 전까지 수량이 맞게) */
-function invApplySent(p){
-  const it=invItem(p.code); if(!it) return;
-  it.q=invRound((Number(it.q)||0)+(p.kind==="입고"?1:-1)*Number(p.q||0));
-  (inv.recent=inv.recent||[]).push({d:p.date,k:p.kind,c:p.code,q:p.q,site:p.site,u:p.user,m:p.memo});
+function invApplySent(p, j){
+  if(!inv) inv={items:[],recent:[],at:""};
+  inv.items=inv.items||[]; inv.recent=inv.recent||[];
+  if(p.type==="invitem"){
+    // 서버가 붙인 진짜 코드로 바꿔 넣는다 (같은 자재가 이미 있었으면 그 자재에 수량만 더함)
+    const code=j&&j.code; if(!code) return;
+    let it=inv.items.find(x=>x.c===code);
+    if(!it){ it={c:code,s:p.sec,g:p.sub,n:p.name,sp:p.spec||"",q:0}; inv.items.push(it); }
+    if(Number(p.q)>0 && !(j&&j.txError)){
+      it.q=invRound((Number(it.q)||0)+Number(p.q));
+      inv.recent.push({d:p.date,k:"입고",c:code,q:p.q,site:p.site,u:p.user,m:p.memo});
+    }
+    if(j&&j.created===false) toast(`이미 있던 자재(${code})로 입고했습니다`);
+  }else{
+    const it=inv.items.find(x=>x.c===p.code); if(!it) return;
+    it.q=invRound((Number(it.q)||0)+(p.kind==="입고"?1:-1)*Number(p.q||0));
+    inv.recent.push({d:p.date,k:p.kind,c:p.code,q:p.q,site:p.site,u:p.user,m:p.memo});
+  }
   lsSet("hg_inv",inv);
-  if(document.getElementById("invModal").classList.contains("open")) renderInv();
+  if(document.getElementById("invModal").classList.contains("open")){ fillInvSections(); renderInv(); }
+}
+
+/* ----- 새 자재 등록 (목록에 없는 부품이 처음 들어왔을 때) ----- */
+let invNewSub="일반";
+function setInvNewSub(s){
+  invNewSub=s;
+  document.querySelectorAll("#invNewSub .btn").forEach(b=>b.classList.toggle("secondary", b.dataset.s!==s));
+}
+function openInvNew(prefill){
+  const secs=[...new Set(((inv&&inv.items)||[]).map(x=>x.s).filter(Boolean))];
+  document.getElementById("invSecList").innerHTML=secs.map(s=>`<option value="${esc(s)}">`).join("");
+  document.getElementById("invNew_sec").value=document.getElementById("inv_sec").value||"";
+  document.getElementById("invNew_name").value=prefill||"";
+  document.getElementById("invNew_spec").value="";
+  document.getElementById("invNew_q").value="1";
+  document.getElementById("invNew_date").value=todayStr();
+  document.getElementById("invNew_site").value="";
+  document.getElementById("invNew_memo").value="";
+  document.getElementById("invNewUser").textContent=lsGet("hg_username","") || "(처음 기록할 때 입력)";
+  setInvNewSub("일반");
+  if(!document.getElementById("invSiteList").options.length){
+    const names=[...new Set(getAllSites().map(s=>(s.name||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ko"));
+    document.getElementById("invSiteList").innerHTML=names.map(n=>`<option value="${esc(n)}">`).join("");
+  }
+  openModalById("invNewModal");
+}
+function saveInvNew(){
+  const sec=document.getElementById("invNew_sec").value.trim();
+  const name=document.getElementById("invNew_name").value.trim();
+  const spec=document.getElementById("invNew_spec").value.trim();
+  const qs=document.getElementById("invNew_q").value.trim();
+  const q=qs===""?0:Number(qs);
+  if(!sec){ toast("구분을 넣어 주세요 (예: 현대)"); return; }
+  if(!name){ toast("품명을 넣어 주세요"); return; }
+  if(!(q>=0)){ toast("수량을 확인해 주세요"); return; }
+  // 이미 있는 자재면 새로 만들지 않고 그 자재 입고 화면으로
+  const same=invAllItems().find(x=>invNorm(x.s)===invNorm(sec) && invNorm(x.n)===invNorm(name) && invNorm(x.sp)===invNorm(spec));
+  if(same){
+    if(confirm(`이미 있는 자재입니다: ${same.n}${same.sp?" · "+same.sp:""} (현재 ${invQty(same)}개)\n이 자재로 입고 화면을 열까요?`)){
+      closeModal("invNewModal");
+      if(!same.temp){ openInvTx(same.c); setInvKind("입고"); if(q>0) document.getElementById("invTx_q").value=String(q); }
+    }
+    return;
+  }
+  const user=invUserName();
+  if(!user){ toast("이름을 넣어야 기록됩니다"); return; }
+  if(!APPS_SCRIPT_URL){ toast("서버 연결이 필요합니다"); return; }
+  pendingQueue.push({ token:APP_TOKEN, type:"invitem",
+    id: Date.now().toString(36)+Math.random().toString(36).slice(2,8),
+    sec:sec, sub:invNewSub, name:name, spec:spec, q:q,
+    date:document.getElementById("invNew_date").value||todayStr(),
+    site:document.getElementById("invNew_site").value.trim(),
+    memo:document.getElementById("invNew_memo").value.trim(), user:user });
+  savePending();
+  closeModal("invNewModal");
+  document.getElementById("inv_q").value=name; setInvView("stock");
+  toast(q>0 ? `새 자재 등록 + 입고 ${q}개 — ${name}` : `새 자재 등록 — ${name}`);
+  flushPending();
 }
 
 /* 앱에서 추가한 현장이 시트에 반영되고 나면 폰에 남은 사본을 정리한다.
@@ -2285,6 +2402,10 @@ document.querySelectorAll("#invTxModal .inv-kind .btn").forEach(b=>b.onclick=()=
 document.getElementById("invTxCancel").onclick=()=>closeModal("invTxModal");
 document.getElementById("invTxSave").onclick=saveInvTx;
 document.getElementById("invTxUserChange").onclick=changeInvUser;
+document.getElementById("invNewBtn").onclick=()=>openInvNew(document.getElementById("inv_q").value.trim());
+document.getElementById("invNewCancel").onclick=()=>closeModal("invNewModal");
+document.getElementById("invNewSave").onclick=saveInvNew;
+document.querySelectorAll("#invNewSub .btn").forEach(b=>b.onclick=()=>setInvNewSub(b.dataset.s));
 document.querySelectorAll("#invViewTabs .btn").forEach(b=>b.onclick=()=>setInvView(b.dataset.v));
 document.getElementById("siteCancel").onclick=()=>closeModal("siteModal");
 document.getElementById("siteSave").onclick=saveSite;
