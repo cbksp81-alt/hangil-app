@@ -339,6 +339,17 @@
   .inv-hrow .ih-k.in{color:var(--ok);} .inv-hrow .ih-k.out{color:var(--danger);}
   .inv-hrow .ih-meta{font-size:.8em;color:var(--muted);margin-top:3px;word-break:break-all;}
   .inv-hrow .ih-meta b{color:var(--text);}
+  .ih-edit{margin-left:auto;padding:4px 10px !important;font-size:.76em !important;flex:0 0 auto;}
+  .inv-hrow.cancel,.inv-hist.cancel{opacity:.55;}
+  .inv-hrow.cancel .ih-k,.inv-hist.cancel .ih-k{text-decoration:line-through;}
+  #invEditModal{z-index:110;}      /* 기록 창 위에 뜬다 */
+  #invConfirmModal{z-index:120;}   /* 모든 자재 창 위에 뜬다 */
+  .inv-cf{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;}
+  .inv-cf .cf-row{display:flex;gap:10px;padding:5px 0;align-items:baseline;}
+  .inv-cf .cf-k{color:var(--muted);font-size:.85em;flex:0 0 4.6em;}
+  .inv-cf .cf-v{font-weight:700;flex:1;min-width:0;word-break:break-all;}
+  .inv-cf .cf-big{font-size:1.35em;}
+  .inv-cf .cf-warn{color:var(--danger);font-size:.85em;font-weight:700;}
   .inv-kind .btn{flex:1;}
   .inv-hist{display:flex;gap:8px;font-size:.84em;padding:7px 0;border-bottom:1px solid var(--line);}
   .inv-hist .ih-d{color:var(--muted);flex:0 0 auto;font-variant-numeric:tabular-nums;}
@@ -480,6 +491,35 @@
     <div class="modal-actions">
       <button class="btn secondary" id="invNewCancel">취소</button>
       <button class="btn" id="invNewSave">등록하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 출고·수정 전에 한 번 더 확인 -->
+<div class="modal-back" id="invConfirmModal">
+  <div class="modal">
+    <h3 id="invConfirmTitle">이대로 기록할까요?</h3>
+    <div id="invConfirmBody"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" id="invConfirmNo">다시 입력</button>
+      <button class="btn" id="invConfirmYes">맞아요, 기록</button>
+    </div>
+  </div>
+</div>
+
+<!-- 잘못 기록한 입고·출고 고치기 -->
+<div class="modal-back" id="invEditModal">
+  <div class="modal">
+    <h3 id="invEditTitle">기록 수정</h3>
+    <div class="placeholder-box" id="invEditOrig" style="margin:0 0 12px"></div>
+    <div class="field"><label>수량</label><input type="number" id="invEdit_q" min="0" step="any" inputmode="decimal"></div>
+    <div class="field"><label id="invEditSiteLabel">현장</label><input type="text" id="invEdit_site" list="invSiteList"></div>
+    <div class="field"><label>날짜</label><input type="date" id="invEdit_date"></div>
+    <div class="inv-who">고치는 사람 <b id="invEditUser">-</b></div>
+    <div class="modal-actions">
+      <button class="btn danger" id="invEditCancelRec">이 기록 취소</button>
+      <button class="btn secondary" id="invEditClose">닫기</button>
+      <button class="btn" id="invEditSave">수정 저장</button>
     </div>
   </div>
 </div>
@@ -1181,7 +1221,7 @@ async function flushPending(){
         continue;
       }
       pendingQueue.shift(); savePending();
-      if(p.type==="invtx" || p.type==="invitem") invApplySent(p, j);   // 보낸 입출고·새 자재를 폰의 재고 목록에도 반영
+      if(p.type==="invtx" || p.type==="invitem" || p.type==="invedit") invApplySent(p, j);   // 보낸 입출고·새 자재·수정을 폰의 재고 목록에도 반영
     }
   }catch(e){
     console.warn("점검기록 동기화 대기:",e);
@@ -1219,15 +1259,35 @@ function setInvView(v){
   renderInv();
 }
 /* 입출고 내역: 서버의 최근 기록 + 아직 못 보낸 내 기록, 최신순 */
-function renderInvHist(box, words, sec){
-  const pend=pendingQueue.filter(p=>p.type==="invtx" || (p.type==="invitem" && Number(p.q)>0))
+/* 입출고 기록 목록 (최신순): 아직 못 보낸 내 기록이 맨 위, 그다음 서버 기록.
+   서버 기록에는 아직 못 보낸 수정·취소를 덮어써서 보여 준다. id 가 있는 것(앱이 쓴 기록)만 고칠 수 있다. */
+function invRecords(code){
+  const pend=pendingQueue.filter(p=>(p.type==="invtx" || (p.type==="invitem" && Number(p.q)>0)) && (!code || (p.type==="invtx"?p.code:"NEW-"+p.id)===code))
     .map(p=>p.type==="invitem"
       ? {d:p.date,k:"입고",c:"NEW-"+p.id,q:p.q,site:p.site,u:p.user,m:["새 자재 등록",p.memo].filter(Boolean).join(" · "),pend:true}
-      : {d:p.date,k:p.kind,c:p.code,q:p.q,site:p.site,u:p.user,m:p.memo,pend:true});
-  // 날짜 최신순 (같은 날이면 시트 아래쪽 = 나중 기록이 위로). 아직 못 보낸 내 기록은 맨 위
-  const all=((inv&&inv.recent)||[]).map((r,i)=>({...r,_i:i}))
-    .sort((a,b)=>(b.d||"").localeCompare(a.d||"") || b._i-a._i);
-  const rows=pend.reverse().concat(all).filter(r=>{
+      : {d:p.date,k:p.kind,c:p.code,q:p.q,site:p.site,u:p.user,m:p.memo,pend:true,id:p.id}).reverse();
+  const server=((inv&&inv.recent)||[]).filter(r=>!code || r.c===code).map((r,i)=>{
+    const e=invEffective(r); return {...r,...e,_i:i};
+  }).sort((a,b)=>(b.d||"").localeCompare(a.d||"") || b._i-a._i);
+  return pend.concat(server).map(r=>({...r, cancel: Number(r.q)===0 && /\[취소/.test(r.m||"")}));
+}
+/* 서버 기록 + 아직 못 보낸 수정을 순서대로 덮어쓴 값 */
+function invEffective(r){
+  const out={q:r.q, site:r.site, d:r.d, m:r.m, editPend:false};
+  if(!r.id) return out;
+  for(const p of pendingQueue) if(p.type==="invedit" && p.target===r.id){
+    out.q=p.cancel?0:Number(p.q); if(!p.cancel){ out.site=p.site; out.d=p.date||out.d; }
+    if(p.cancel) out.m=(out.m?out.m+" · ":"")+"[취소]";
+    out.editPend=true;
+  }
+  return out;
+}
+function invEditBtn(r){ return r.id ? `<button class="btn ghost sm ih-edit" data-id="${esc(r.id)}">수정</button>` : ""; }
+function bindInvEditBtns(root){
+  root.querySelectorAll(".ih-edit").forEach(b=>b.onclick=e=>{ e.stopPropagation(); openInvEdit(b.dataset.id); });
+}
+function renderInvHist(box, words, sec){
+  const rows=invRecords().filter(r=>{
     const it=invItem(r.c);
     if(sec && (!it || it.s!==sec)) return false;
     if(!words.length) return true;
@@ -1239,18 +1299,20 @@ function renderInvHist(box, words, sec){
   box.innerHTML=rows.slice(0,LIMIT).map(r=>{
     const it=invItem(r.c);
     const name=it ? it.n+(it.sp?" "+it.sp:"") : r.c;
-    return `<div class="inv-hrow" data-c="${esc(r.c)}">
-      <div class="ih-top"><span class="ih-item">${esc(name)}</span><span class="ih-k ${r.k==="입고"?"in":"out"}">${esc(r.k)} ${r.q}</span></div>
-      <div class="ih-meta">${esc(r.d||"")} · ${r.k==="입고"?"거래처":"현장"} <b>${esc(r.site||"-")}</b> · ${r.k==="입고"?"입고 처리":"가져간 사람"} <b>${esc(r.u||"-")}</b>${r.m?" · "+esc(r.m):""}${r.pend?` · <span class="inv-pend">전송 대기</span>`:""}</div>
+    return `<div class="inv-hrow${r.cancel?" cancel":""}" data-c="${esc(r.c)}">
+      <div class="ih-top"><span class="ih-item">${esc(name)}</span><span class="ih-k ${r.k==="입고"?"in":"out"}">${esc(r.k)} ${r.cancel?"취소됨":r.q}</span>${invEditBtn(r)}</div>
+      <div class="ih-meta">${esc(r.d||"")} · ${r.k==="입고"?"거래처":"현장"} <b>${esc(r.site||"-")}</b> · ${r.k==="입고"?"입고 처리":"가져간 사람"} <b>${esc(r.u||"-")}</b>${r.m?" · "+esc(r.m):""}${r.pend?` · <span class="inv-pend">전송 대기</span>`:""}${r.editPend?` · <span class="inv-pend">수정 전송 대기</span>`:""}</div>
     </div>`;
   }).join("") + (rows.length>LIMIT?`<div class="empty">최근 ${LIMIT}건만 표시 — 전체 기록은 입출고기록장 시트에 있습니다</div>`:"");
   box.querySelectorAll(".inv-hrow").forEach(el=>el.onclick=()=>{ if(invItem(el.dataset.c)) openInvTx(el.dataset.c); });
+  bindInvEditBtns(box);
 }
 function invPendingDelta(code){
   let d=0;
   for(const p of pendingQueue){
     if(p.type==="invtx" && p.code===code) d+=(p.kind==="입고"?1:-1)*Number(p.q||0);
     else if(p.type==="invitem" && "NEW-"+p.id===code) d+=Number(p.q||0);
+    else if(p.type==="invedit" && p._code===code) d+=(p._kind==="입고"?1:-1)*((p.cancel?0:Number(p.q||0))-Number(p._oldQ||0));
   }
   return d;
 }
@@ -1349,28 +1411,52 @@ function openInvTx(code, keepForm){
     const names=[...new Set(getAllSites().map(s=>(s.name||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ko"));
     document.getElementById("invSiteList").innerHTML=names.map(n=>`<option value="${esc(n)}">`).join("");
   }
-  const pend=pendingQueue.filter(p=>p.type==="invtx" && p.code===code)
-    .map(p=>({d:p.date,k:p.kind,q:p.q,site:p.site,u:p.user,m:p.memo,pend:true}));
-  const hist=pend.concat(((inv&&inv.recent)||[]).filter(r=>r.c===code).slice(-8).reverse());
-  document.getElementById("invTxHist").innerHTML = hist.length ? hist.map(r=>
-    `<div class="inv-hist"><span class="ih-d">${esc((r.d||"").slice(5))}</span><span class="ih-k ${r.k==="입고"?"in":"out"}">${esc(r.k)} ${r.q}</span><span class="ih-t">${esc([r.site,r.u,r.m].filter(Boolean).join(" · "))}${r.pend?` <span class="inv-pend">전송 대기</span>`:""}</span></div>`
+  const hist=invRecords(code).slice(0,8);
+  const hbox=document.getElementById("invTxHist");
+  hbox.innerHTML = hist.length ? hist.map(r=>
+    `<div class="inv-hist${r.cancel?" cancel":""}"><span class="ih-d">${esc((r.d||"").slice(5))}</span><span class="ih-k ${r.k==="입고"?"in":"out"}">${esc(r.k)} ${r.cancel?"취소됨":r.q}</span><span class="ih-t">${esc([r.site,r.u,r.m].filter(Boolean).join(" · "))}${r.pend?` <span class="inv-pend">전송 대기</span>`:""}${r.editPend?` <span class="inv-pend">수정 전송 대기</span>`:""}</span>${invEditBtn(r)}</div>`
   ).join("") : `<div class="empty" style="padding:14px">최근 기록 없음</div>`;
+  bindInvEditBtns(hbox);
   openModalById("invTxModal");
 }
-function saveInvTx(){
+/* 기록 전 확인 창: 「다시 입력」이면 false, 「맞아요」면 true */
+let _invConfirmResolve=null;
+function invConfirm(title, rows, okLabel){
+  document.getElementById("invConfirmTitle").textContent=title;
+  document.getElementById("invConfirmBody").innerHTML=`<div class="inv-cf">${rows.map(([k,v,cls])=>`<div class="cf-row"><span class="cf-k">${esc(k)}</span><span class="cf-v ${cls||""}">${v}</span></div>`).join("")}</div>`;
+  document.getElementById("invConfirmYes").textContent=okLabel||"맞아요, 기록";
+  openModalById("invConfirmModal");
+  return new Promise(res=>{ _invConfirmResolve=res; });
+}
+function invConfirmDone(v){ closeModal("invConfirmModal"); const r=_invConfirmResolve; _invConfirmResolve=null; if(r) r(v); }
+async function saveInvTx(){
   const it=invItem(invCur); if(!it) return;
   const q=Number(document.getElementById("invTx_q").value);
   if(!(q>0)){ toast("수량을 넣어 주세요"); return; }
   const date=document.getElementById("invTx_date").value||todayStr();
+  const site=document.getElementById("invTx_site").value.trim();
   const now=invQty(it);
-  if(invKind==="출고" && q>now && !confirm(`현재 수량(${now})보다 많이 출고합니다.\n그대로 기록할까요?`)) return;
+  if(invKind==="출고"){
+    // 출고는 현장·수량을 한 번 더 확인하고 기록한다
+    if(!site){ toast("출고할 현장을 넣어 주세요"); document.getElementById("invTx_site").focus(); return; }
+    const after=invRound(now-q);
+    const ok=await invConfirm("이대로 출고할까요?", [
+      ["자재", esc(it.n+(it.sp?" · "+it.sp:""))],
+      ["현장", esc(site), "cf-big"],
+      ["수량", `출고 ${q}개`, "cf-big"],
+      ["남는 수량", `${now} → ${after}${after<0?` <span class="cf-warn">(현재 수량보다 많이 출고)</span>`:""}`],
+      ["날짜", esc(date)],
+      ["기록자", esc(lsGet("hg_username","")||"(다음에 입력)")],
+    ], "맞아요, 출고 기록");
+    if(!ok) return;
+  }
   const user=invUserName();
   if(!user){ toast("이름을 넣어야 기록됩니다"); return; }
   if(!APPS_SCRIPT_URL){ toast("서버 연결이 필요합니다"); return; }
   pendingQueue.push({ token:APP_TOKEN, type:"invtx",
     id: Date.now().toString(36)+Math.random().toString(36).slice(2,8),   // 다시 보내도 두 번 안 써지게
     code:it.c, kind:invKind, q:q, date:date,
-    site:document.getElementById("invTx_site").value.trim(),
+    site:site,
     memo:document.getElementById("invTx_memo").value.trim(), user:user });
   savePending();
   closeModal("invTxModal");
@@ -1392,13 +1478,86 @@ function invApplySent(p, j){
       inv.recent.push({d:p.date,k:"입고",c:code,q:p.q,site:p.site,u:p.user,m:p.memo});
     }
     if(j&&j.created===false) toast(`이미 있던 자재(${code})로 입고했습니다`);
+  }else if(p.type==="invedit"){
+    // 서버가 고친 결과(j)로 폰의 기록·수량을 맞춘다
+    if(!j || j.ok!=="invedit") return;
+    const it=inv.items.find(x=>x.c===p._code);
+    const rec=inv.recent.find(x=>x.id===p.target);
+    const sign=p._kind==="입고"?1:-1;
+    const oldQ=rec ? Number(rec.q)||0 : Number(p._oldQ)||0;
+    if(it) it.q=invRound((Number(it.q)||0)+sign*(Number(j.q)-oldQ));
+    if(rec){ rec.q=j.q; rec.site=j.site; rec.d=j.d; rec.m=j.m; }
   }else{
     const it=inv.items.find(x=>x.c===p.code); if(!it) return;
     it.q=invRound((Number(it.q)||0)+(p.kind==="입고"?1:-1)*Number(p.q||0));
-    inv.recent.push({d:p.date,k:p.kind,c:p.code,q:p.q,site:p.site,u:p.user,m:p.memo});
+    inv.recent.push({d:p.date,k:p.kind,c:p.code,q:p.q,site:p.site,u:p.user,m:p.memo,id:p.id});
   }
   lsSet("hg_inv",inv);
   if(document.getElementById("invModal").classList.contains("open")){ fillInvSections(); renderInv(); }
+  if(invCur && document.getElementById("invTxModal").classList.contains("open")) openInvTx(invCur, true);
+}
+
+/* ----- 잘못 기록한 입고·출고 고치기 / 취소 -----
+   - 아직 못 보낸 기록이면 폰 대기열에서 바로 고친다
+   - 서버에 들어간 기록이면 「수정」을 대기열에 넣는다 (시트 줄은 지우지 않고, 메모에 누가 무엇을 고쳤는지 남음) */
+let invEditing=null;
+function invFindRecord(id){
+  const pq=pendingQueue.find(p=>p.type==="invtx" && p.id===id);
+  if(pq) return {pend:true, p:pq, r:{d:pq.date,k:pq.kind,c:pq.code,q:pq.q,site:pq.site,u:pq.user,m:pq.memo,id:pq.id}};
+  const r=((inv&&inv.recent)||[]).find(x=>x.id===id);
+  return r ? {pend:false, r:{...r, ...invEffective(r)}} : null;
+}
+function openInvEdit(id){
+  const f=invFindRecord(id); if(!f){ toast("기록을 찾을 수 없습니다 — 새로고침 후 다시 해 보세요"); return; }
+  invEditing={id, ...f};
+  const r=f.r, it=invItem(r.c);
+  document.getElementById("invEditTitle").textContent=`${r.k} 기록 수정`;
+  document.getElementById("invEditOrig").innerHTML=`<b>${esc(it?it.n+(it.sp?" · "+it.sp:""):r.c)}</b><br>${esc(r.d||"")} · ${esc(r.k)} <b>${r.q}</b>개 · ${r.k==="입고"?"거래처":"현장"} ${esc(r.site||"-")} · 기록자 ${esc(r.u||"-")}${f.pend?` · <span class="inv-pend">아직 전송 전</span>`:""}`;
+  document.getElementById("invEditSiteLabel").textContent=r.k==="입고"?"거래처 · 현장":"현장";
+  document.getElementById("invEdit_q").value=String(r.q);
+  document.getElementById("invEdit_site").value=r.site||"";
+  document.getElementById("invEdit_date").value=r.d||todayStr();
+  document.getElementById("invEditUser").textContent=lsGet("hg_username","")||"(저장할 때 입력)";
+  document.getElementById("invEditCancelRec").style.display = Number(r.q)===0 ? "none" : "";
+  openModalById("invEditModal");
+}
+async function saveInvEdit(cancel){
+  const f=invEditing; if(!f) return;
+  const r=f.r, it=invItem(r.c);
+  const q=cancel?0:Number(document.getElementById("invEdit_q").value);
+  const site=cancel?r.site:document.getElementById("invEdit_site").value.trim();
+  const date=cancel?r.d:(document.getElementById("invEdit_date").value||r.d);
+  if(!cancel && !(q>0)){ toast("수량을 넣어 주세요 (기록을 없애려면 「이 기록 취소」)"); return; }
+  if(!cancel && r.k==="출고" && !site){ toast("현장을 넣어 주세요"); return; }
+  if(!cancel && q===Number(r.q) && site===(r.site||"") && date===r.d){ toast("바뀐 내용이 없습니다"); return; }
+  const name=esc(it?it.n+(it.sp?" · "+it.sp:""):r.c);
+  const rows = cancel
+    ? [["자재",name],["취소할 기록",`${esc(r.d)} · ${esc(r.k)} ${r.q}개 · ${esc(r.site||"-")}`,"cf-big"],["결과",`수량 ${r.k==="입고"?"−":"+"}${r.q} (기록은 시트에 「취소」로 남음)`]]
+    : [["자재",name],["수량",q===Number(r.q)?`${q} (그대로)`:`${r.q} → <b>${q}</b>`,"cf-big"],
+       [r.k==="입고"?"거래처":"현장",site===(r.site||"")?`${esc(site||"-")} (그대로)`:`${esc(r.site||"-")} → <b>${esc(site||"-")}</b>`,"cf-big"]]
+       .concat(date!==r.d?[["날짜",`${esc(r.d)} → <b>${esc(date)}</b>`]]:[]);
+  const ok=await invConfirm(cancel?"이 기록을 취소할까요?":"이대로 고칠까요?", rows, cancel?"맞아요, 취소":"맞아요, 수정");
+  if(!ok) return;
+  const user=invUserName();
+  if(!user){ toast("이름을 넣어야 고칠 수 있습니다"); return; }
+  if(f.pend){
+    // 아직 서버로 안 간 기록: 대기열에서 바로 고치거나 뺀다
+    const i=pendingQueue.indexOf(f.p);
+    if(i>=0){ if(cancel) pendingQueue.splice(i,1); else Object.assign(f.p,{q:q, site:site, date:date}); }
+    savePending();
+  }else{
+    pendingQueue.push({ token:APP_TOKEN, type:"invedit",
+      id: Date.now().toString(36)+Math.random().toString(36).slice(2,8),
+      target:f.id, q:q, site:site, date:date, cancel:!!cancel, user:user,
+      _code:r.c, _kind:r.k, _oldQ:Number(r.q)||0 });
+    savePending();
+    flushPending();
+  }
+  closeModal("invEditModal");
+  invEditing=null;
+  renderInv();
+  if(invCur && document.getElementById("invTxModal").classList.contains("open")) openInvTx(invCur, true);
+  toast(cancel?"기록을 취소했습니다":"기록을 고쳤습니다");
 }
 
 /* ----- 새 자재 등록 (목록에 없는 부품이 처음 들어왔을 때) ----- */
@@ -2402,6 +2561,11 @@ document.querySelectorAll("#invTxModal .inv-kind .btn").forEach(b=>b.onclick=()=
 document.getElementById("invTxCancel").onclick=()=>closeModal("invTxModal");
 document.getElementById("invTxSave").onclick=saveInvTx;
 document.getElementById("invTxUserChange").onclick=changeInvUser;
+document.getElementById("invConfirmYes").onclick=()=>invConfirmDone(true);
+document.getElementById("invConfirmNo").onclick=()=>invConfirmDone(false);
+document.getElementById("invEditSave").onclick=()=>saveInvEdit(false);
+document.getElementById("invEditCancelRec").onclick=()=>saveInvEdit(true);
+document.getElementById("invEditClose").onclick=()=>{ closeModal("invEditModal"); invEditing=null; };
 document.getElementById("invNewBtn").onclick=()=>openInvNew(document.getElementById("inv_q").value.trim());
 document.getElementById("invNewCancel").onclick=()=>closeModal("invNewModal");
 document.getElementById("invNewSave").onclick=saveInvNew;
